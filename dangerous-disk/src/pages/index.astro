@@ -1,0 +1,102 @@
+---
+// Feature: json-viewer-free — Task 11.1
+//
+// Homepage (index.astro): the static, server-rendered marketing/privacy chrome
+// plus the single hydrated `AppShell` island.
+//
+// Requirements covered here:
+//   • Req 18.3 — an always-visible privacy statement, rendered above the fold
+//     (no scrolling) on a viewport of at least 1280×720, stating that user
+//     data does not leave the user's machine. The statement lives in the hero
+//     band so it is part of the initial paint.
+//   • Req 22.2 — the page renders ad-free: no third-party display ads, ad
+//     iframes, or ad-network scripts on this (or any) view.
+//
+// The interactive workbench is mounted as one Preact island with `client:load`
+// per the design (single-page app shell, client-side tool router in Task 11.2).
+// All styling derives from the `@theme` design tokens (Req 22.1).
+
+import Layout from '../layouts/Layout.astro';
+import AppShell from '../components/app/AppShell.tsx';
+---
+
+<!-- Full-height flex column: a compact hero on top, the workbench filling the
+     rest of the viewport so there is no dead space below it. -->
+<Layout>
+  <div class="flex min-h-screen flex-col">
+    <!-- ── Compact hero band (Vercel-style): mesh-gradient chrome, a concise
+         headline, and the always-visible privacy statement (Req 18.3). Kept
+         tight so the workbench gets the bulk of the viewport. ─────────────── -->
+    <header class="relative overflow-hidden border-b border-divider">
+      <!-- Decorative mesh gradient — the only decorative chrome (design tokens). -->
+      <div class="hero-mesh" aria-hidden="true"></div>
+
+      <div
+        class="relative mx-auto flex w-full max-w-[1600px] flex-wrap items-center justify-between gap-x-lg gap-y-xs px-lg py-md"
+      >
+        <div class="min-w-0">
+          <h1 class="text-display-sm text-ink min-[960px]:text-display-md">
+            The all-in-one JSON workbench
+          </h1>
+          <p class="mt-xxs text-body-sm text-body">
+            View, format, validate, diff, merge, query, and convert JSON — fast,
+            ad-free, and entirely in your browser.
+          </p>
+        </div>
+
+        <!-- Always-visible privacy statement (Req 18.3). It explicitly states
+             that user data does not leave the machine. -->
+        <p
+          class="inline-flex shrink-0 items-center gap-xs rounded-pill border border-divider bg-canvas px-md py-xs text-caption text-body shadow-level-1"
+          data-privacy-statement
+        >
+          <span aria-hidden="true">🔒</span>
+          100% private: processing happens in your browser. Your data never
+          leaves your machine.
+        </p>
+      </div>
+    </header>
+
+    <!-- ── Interactive workbench island. The Viewer grows with its content so
+         the page scrolls (no empty panes); the other tools keep a fixed,
+         viewport-tall card. `main` is content-sized so the page — not a fixed
+         card — is what scrolls. ───────────────────────────────────────────── -->
+    <main
+      class="mx-auto flex w-full max-w-[1600px] flex-col px-lg py-md"
+    >
+      <AppShell client:load />
+    </main>
+  </div>
+</Layout>
+
+<style>
+  /* Vercel-style mesh gradient, built from brand gradient-stop tokens
+     (Req 22.1: token-driven, no hardcoded palette). Soft, hero-scale wash. */
+  .hero-mesh {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.12;
+    background:
+      radial-gradient(
+        40% 60% at 15% 20%,
+        var(--color-gradient-preview-start) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        45% 55% at 85% 15%,
+        var(--color-gradient-develop-start) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        50% 60% at 75% 90%,
+        var(--color-gradient-ship-start) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        45% 50% at 25% 95%,
+        var(--color-gradient-develop-end) 0%,
+        transparent 70%
+      );
+  }
+</style>

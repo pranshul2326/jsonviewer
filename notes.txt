@@ -1,0 +1,98 @@
+I have initialized a new astrojs project, use astro docs mcp and tailwind-4-docs & web-design-guidelines skills for creating the website. Also use @DESIGN.md file and keep the website design like vercel.
+
+Name: Json Viewer free
+Domain: jsonviewerfree.com
+
+Create an online Json Viewer website that will have :
+1. Core Features to Include
+To be a true "all-in-one" platform, your site should offer separate tabs or sub-pages for these primary functions:
+
+JSON Viewer & Editor:
+
+Collapsible Tree View: Ability to expand/collapse nested objects and arrays.
+
+Interactive Node Manipulation: Let users add, delete, or rename keys directly inside the tree view.
+
+Data Type Icons: Subtle visual badges indicating if a value is a String, Number, Boolean, Array, or Object.
+
+Copy JSON Path: Clicking a node allows the user to copy its precise dot-notation or bracket-notation path (e.g., store.book[0].author).
+
+JSON Formatter & Beautifier / Minifier:
+
+Custom indentation settings (2 spaces, 4 spaces, tabs).
+
+One-click minification/compaction to strip out all whitespace for production payloads.
+
+JSON Validator & Linter:
+
+Real-time syntax checking with precise line numbers and clear error descriptions highlighted inline.
+
+A "Smart Fixer" button that auto-repairs common formatting mistakes (like missing quotes around keys, trailing commas, or single quotes instead of double quotes).
+
+JSON Diff Checker & Comparator:
+
+Semantic Diffing: Traditional text diff engines fail if keys are just in a different order. Your tool should understand the actual data structure. If {"a": 1, "b": 2} is compared to {"b": 2, "a": 1}, it should mark them as identical.
+
+Side-by-Side & Unified Views: Standard Git-style visualization.
+
+Three-Way Merge: A power feature allowing users to paste a "Base" file alongside a "Left" and "Right" file to resolve data conflicts.
+
+2. Advanced "Wow Factor" Features (To Beat Competitors)
+To truly differentiate your site, consider implementing these premium, developer-centric features:
+
+Smart Type Inferences (Rich Media Rendering): If a JSON text value contains an image URL, show a mini thumbnail preview on hover. If it’s a hex code, show a color block. If it's a Unix timestamp, show a human-readable date string right next to it.
+
+Comprehensive Converters:
+
+JSON to YAML / XML / CSV / TOML (and vice-versa).
+
+JSON to Code: Generate strongly-typed data structures immediately from a JSON payload. Offer conversions to Java POJOs, TypeScript Interfaces, Go Structs, Python Dataclass, and Dart classes.
+
+JSON Grid / Table View: Transform an array of uniform objects into a searchable, filterable spreadsheet-like grid.
+
+JSONPath & JMESPath Querying: Provide a built-in search bar where developers can write filter expressions (e.g., $.store.book[?(@.price < 10)]) to slice out massive datasets instantly.
+
+Huge File Performance (Web Workers): Most web-based viewers crash or freeze if you paste a 20MB+ JSON file. Offload your parsing and rendering logic to a background Web Worker so the UI never locks up.
+
+3. Critical UX & Architectural Decisions
+100% Client-Side Privacy: Explicitly state on your homepage: "Your data never leaves your machine." Perform all parsing, diffing, and formatting inside the browser using JavaScript. Developers are highly protective of corporate logs or API payloads containing sensitive data.
+
+Keyboard-Driven UI: Implement fast keyboard shortcuts for formatting, clearing, collapsing all nodes, and switching tabs.
+
+URL Sharing / Collaboration: Allow users to generate a shareable link that encodes their current JSON payload natively into the URL hash, making it easy to share mock responses with colleagues.
+
+   
+My competitor websites are:
+1. jsonhero.io
+2. jsonformatter.org
+3. playcode.io/json-diff
+4. jsoncompare.com
+
+Top Competitor Analysis
+Understanding the current market leaders will help you determine what to replicate and what to improve upon.
+
+1. JSON Hero (jsonhero.io)
+What they do best: They have arguably the most beautiful, modern UI available. They focus heavily on visual recognition—auto-detecting dates, colors, video links, and images inside strings. They also generate an automatic JSON schema out of your payload.
+
+Where you can beat them: They focus almost entirely on viewing and analyzing data; they do not offer robust diffing tools or comprehensive code-generation utilities.
+
+2. JSON Formatter (jsonformatter.org)
+What they do best: This is a legacy market leader that ranks highly on Google. It offers an incredible matrix of secondary tools, including XML/CSV converters, validators, string utilities, and basic visual tree views.
+
+Where you can beat them: The website is heavily cluttered with display advertisements, and the overall interface feels severely dated. The user experience can be fragmented as you switch between multiple disjointed tool pages.
+
+3. Playcode JSON Diff (playcode.io/json-diff)
+What they do best: They provide an incredible side-by-side semantic comparison tool powered by Microsoft’s Monaco Editor (the same engine that runs VS Code). It supports Git-style arrow buttons to selectively merge changes from left-to-right or right-to-left and can export differences directly into the standard RFC 6902 JSON Patch format.
+
+Where you can beat them: It functions primarily as a diffing utility rather than a general-purpose all-in-one suite.
+
+4. JSON Compare (jsoncompare.com)
+What they do best: Built with pure privacy in mind, it provides robust, large-file support (up to 50MB dumps) and focuses heavily on semantic diffing (ignoring formatting, white space, and key orders).
+
+Where you can beat them: The interface is highly functional but minimalist; it lacks the richer media visualization features found in newer generation web tools.
+
+
+ and it have some features which we need and we need to make a website better than it. Give me ideas how to make it better. go on to this website and check what exactly we need to make. Do not copy design or ui from that website.
+
+ Summary Strategy for Launch
+Build your front-end layout utilizing the Monaco Editor component to give developers a familiar, native VS Code experience right out of the box. Group your features cleanly under a single navigation bar (e.g., Viewer | Diff Checker | Table Grid | Converter). Emphasize privacy, clean typography, and high performance with large files to draw users away from ad-ridden legacy platforms.

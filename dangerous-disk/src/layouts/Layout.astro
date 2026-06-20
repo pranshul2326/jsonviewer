@@ -1,0 +1,124 @@
+---
+// Feature: json-viewer-free — Task 11.1
+//
+// Layout.astro — the base static shell for every page.
+//
+// Responsibilities:
+//   • Import the Tailwind 4 `@theme` design tokens (`theme.css`) so the whole
+//     UI derives color/typography/spacing/elevation from tokens (Req 22.1).
+//   • Self-host the design fonts (Inter → "Geist" substitute for sans,
+//     JetBrains Mono → "Geist Mono" substitute for mono, per the design
+//     tokens). They are bundled same-origin via `@fontsource`, so no
+//     cross-origin font request is ever issued — this keeps the app
+//     privacy-first (Req 18: user data / requests never leave the machine)
+//     and aligns with the planned `connect-src 'self'` policy (Task 18.5).
+//   • Render the page body. The base font family comes from the `--font-sans`
+//     token so all chrome is token-driven (Req 22.1).
+//
+// Ad-free by construction (Req 22.2): this shell contains no third-party ad
+// markup, ad iframes, or ad-network scripts, and intentionally loads no
+// third-party analytics or tag-manager scripts.
+
+import '../styles/theme.css';
+
+// Self-hosted web fonts (bundled, same-origin). `@fontsource` emits the
+// `@font-face` rules and ships the woff2 files as local assets.
+import '@fontsource/inter/400.css';
+import '@fontsource/inter/500.css';
+import '@fontsource/inter/600.css';
+import '@fontsource/jetbrains-mono/400.css';
+
+interface Props {
+  /** Page <title>; defaults to the product name. */
+  title?: string;
+  /** Meta description for SEO. */
+  description?: string;
+}
+
+const {
+  title = 'Json Viewer Free — Privacy-first JSON viewer, formatter, diff & converter',
+  description = 'A fast, ad-free, 100% client-side JSON workbench: viewer, formatter/minifier, validator, semantic diff & merge, table grid, and converters. Your data never leaves your browser.',
+} = Astro.props;
+
+// Content-Security-Policy enforcing client-side privacy (Req 18).
+//
+// `connect-src 'self'` is the load-bearing directive: it blocks every
+// fetch/XHR/WebSocket/EventSource/sendBeacon to any origin other than the
+// site itself, so no tool can ever transmit user JSON to a third party — any
+// accidental outbound data call is stopped by the browser (Req 18.1, 18.2,
+// 18.5). Because all logic runs locally, the app keeps working with no network
+// at all (Req 18.4).
+//
+// The remaining directives are scoped as tightly as possible while keeping the
+// app fully functional:
+//   • default-src 'self'      — same-origin by default.
+//   • script-src  'self' 'unsafe-inline' blob: — bundled Astro/Preact islands
+//                                are same-origin; Astro hydrates `client:load`
+//                                islands via small INLINE bootstrap scripts, so
+//                                `'unsafe-inline'` is required or the island
+//                                never hydrates (every control would be inert).
+//                                Monaco's editor/json language workers are
+//                                emitted as same-origin worker chunks but the
+//                                browser may instantiate them via blob: URLs.
+//                                This does NOT weaken the privacy guarantee:
+//                                exfiltration is blocked by `connect-src 'self'`
+//                                below, which is unaffected by inline scripts.
+//   • worker-src  'self' blob: — Monaco web workers (same-origin + blob:).
+//   • style-src   'self' 'unsafe-inline' — bundled token CSS is same-origin;
+//                                'unsafe-inline' covers Astro scoped styles and
+//                                Monaco's injected editor styles.
+//   • img-src     'self' data: blob: https: — user-supplied image URLs for the
+//                                rich-media preview (Req 12.1) load as <img>
+//                                elements only; they carry no JSON and are
+//                                user-initiated.
+//   • font-src    'self'      — fonts are self-hosted (bundled @fontsource).
+//   • object-src 'none' / base-uri 'self' / form-action 'self' — hardening.
+const csp = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' blob:",
+  "worker-src 'self' blob:",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ');
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content={csp} />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="generator" content={Astro.generator} />
+    <meta name="description" content={description} />
+    <title>{title}</title>
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>
+
+<style>
+  /* Token-driven base styling (Req 22.1): the page background, ink color, and
+     font family all resolve from the `@theme` tokens defined in theme.css. */
+  html,
+  body {
+    margin: 0;
+    width: 100%;
+    min-height: 100%;
+  }
+
+  body {
+    background-color: var(--color-canvas-soft);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+</style>
