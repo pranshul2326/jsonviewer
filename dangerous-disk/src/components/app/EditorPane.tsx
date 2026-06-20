@@ -36,6 +36,12 @@ import type { ParseResult } from '../../lib/json-core/parse';
 import { isLargeDocument } from '../../lib/workers/large-document';
 import { JobCancelledError, WorkerClient } from '../../lib/workers/worker-client';
 import { markersForParseResult } from './editor-markers';
+import {
+  applyMonacoTheme,
+  defineMonacoThemes,
+  editorThemeName,
+  onAppThemeChange,
+} from '../../lib/monaco-theme';
 import type * as Monaco from 'monaco-editor';
 
 /** Debounce window before validation runs after the last keystroke (Req 6.1). */
@@ -96,12 +102,8 @@ export function EditorPane({ onEditorReady, parseLarge }: EditorPaneProps) {
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     let changeSub: Monaco.IDisposable | null = null;
     let unsubscribe: (() => void) | null = null;
-    // Auto-height wiring (grow-to-content): the editor is exactly as tall as its
-    // content, capped at a fraction of the viewport. A folded/short document
-    // shrinks the editor (no empty canvas); a large one caps the height so
-    // Monaco keeps virtualizing its own lines and scrolls internally.
-    let sizeSub: Monaco.IDisposable | null = null;
-    let resizeObserver: ResizeObserver | null = null;
+    // Stops observing app theme toggles on cleanup.
+    let unsubscribeTheme: (() => void) | null = null;
     // Lazily-created worker client used only to parse Large_Documents off the
     // main thread (Req 17.1). Small documents never construct it.
     let parseClient: WorkerClient | null = null;
@@ -251,6 +253,10 @@ export function EditorPane({ onEditorReady, parseLarge }: EditorPaneProps) {
       if (disposed) return;
       monaco = editorApi as unknown as typeof Monaco;
 
+      // Register the token-aligned light/dark editor themes and select the one
+      // matching the current app theme so the editor surface follows dark mode.
+      defineMonacoThemes(monaco);
+
       // Our Validator is authoritative — disable Monaco's own JSON schema
       // diagnostics. Tokenization/syntax coloring is unaffected.
       monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
@@ -263,7 +269,8 @@ export function EditorPane({ onEditorReady, parseLarge }: EditorPaneProps) {
       editor = monaco.editor.create(container, {
         value: $document.get().text,
         language: 'json',
-        automaticLayout: false,
+        theme: editorThemeName(),
+        automaticLayout: true,
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
         fontFamily:
@@ -290,31 +297,11 @@ export function EditorPane({ onEditorReady, parseLarge }: EditorPaneProps) {
 
       onEditorReady?.(editor);
 
-      // Grow-to-content height: size the editor to its content, capped at ~85%
-      // of the viewport. The host width tracks the pane (ResizeObserver); the
-      // height tracks the content (onDidContentSizeChange). Below the cap the
-      // editor shrinks to fit (no empty canvas, page scrolls); above it the
-      // height is capped and Monaco virtualizes/scrolls its own lines.
-      const host = container;
-      const heightCap = () =>
-        Math.max(160, Math.floor((window.innerHeight || 800) * 0.85));
-      const relayout = () => {
-        if (!editor) return;
-        const width = host.clientWidth || host.getBoundingClientRect().width;
-        const contentH = editor.getContentHeight();
-        const height = Math.min(contentH, heightCap());
-        host.style.height = `${height}px`;
-        editor.layout({ width, height });
-      };
-      if (typeof ResizeObserver !== 'undefined' && host.parentElement) {
-        // Observe the parent for width changes (divider drag, window resize).
-        // We must NOT observe the host itself, since relayout sets the host's
-        // height and that would re-trigger the observer in a loop.
-        resizeObserver = new ResizeObserver(() => relayout());
-        resizeObserver.observe(host.parentElement);
-      }
-      sizeSub = editor.onDidContentSizeChange(() => relayout());
-      relayout();
+      // Follow live app theme toggles: re-apply the matching Monaco theme when
+      // the user flips dark mode while the editor is mounted.
+      unsubscribeTheme = onAppThemeChange(() => {
+        if (monaco) applyMonacoTheme(monaco, 'editor');
+      });
 
       // Debounced validation on every content change (Req 6.1). Skip changes
       // we apply ourselves during external sync to avoid feedback loops.
@@ -357,9 +344,8 @@ export function EditorPane({ onEditorReady, parseLarge }: EditorPaneProps) {
       disposed = true;
       clearDebounce();
       changeSub?.dispose();
-      sizeSub?.dispose();
-      resizeObserver?.disconnect();
       unsubscribe?.();
+      unsubscribeTheme?.();
       parseClient?.dispose(true);
       parseClient = null;
       editor?.dispose();
@@ -369,7 +355,7 @@ export function EditorPane({ onEditorReady, parseLarge }: EditorPaneProps) {
   return (
     <div
       ref={containerRef}
-      class="w-full overflow-hidden bg-canvas font-mono text-code"
+      class="h-full w-full overflow-hidden bg-canvas font-mono text-code"
     />
   );
 }

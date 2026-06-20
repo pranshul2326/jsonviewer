@@ -103,6 +103,81 @@ export function setWorkerActivity(activity: WorkerActivity | null): void {
 }
 
 // ---------------------------------------------------------------------------
+// $diffBuffers — Diff Checker Left/Right buffers (persisted across tool switches)
+// ---------------------------------------------------------------------------
+
+/**
+ * The Diff Checker's own Left/Right document buffers and active mode. The Diff
+ * tool unmounts when the user switches tools, so keeping these in a shared store
+ * (rather than component state) preserves both pasted documents when the user
+ * navigates away and back (Req 21.5/21.6). The shared `$document` is never
+ * mutated by the Diff tool; `left` is merely seeded from it on first entry.
+ */
+export interface DiffBuffers {
+  /** Left (original) document text. */
+  left: string;
+  /** Right (modified) document text. */
+  right: string;
+  /** Active mode: side-by-side compare, or three-way merge. */
+  mode: 'compare' | 'merge';
+  /** Whether `left` has been seeded from the shared document yet (first entry). */
+  seeded: boolean;
+}
+
+/** The Diff Checker buffers, retained for the lifetime of the session. */
+export const $diffBuffers = map<DiffBuffers>({
+  left: '',
+  right: '',
+  mode: 'compare',
+  seeded: false,
+});
+
+// Persist the Diff buffers to localStorage so both documents survive a page
+// refresh. This is client-only and the data never leaves the browser, so the
+// privacy guarantee (no network egress) is preserved. All access is guarded for
+// SSR and wrapped so a blocked/full storage never breaks the app. Very large
+// buffers are not persisted, to stay clear of the storage quota.
+const DIFF_BUFFERS_KEY = 'jvf:diff-buffers';
+const DIFF_PERSIST_MAX = 2_000_000; // ~2 MB combined; skip persisting beyond this
+
+/** Restore the Diff buffers from localStorage on first load (client-only). */
+function loadDiffBuffers(): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(DIFF_BUFFERS_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw) as Partial<DiffBuffers>;
+    if (typeof saved.left === 'string' && typeof saved.right === 'string') {
+      $diffBuffers.set({
+        left: saved.left,
+        right: saved.right,
+        mode: saved.mode === 'merge' ? 'merge' : 'compare',
+        // Restored buffers count as already seeded, so the Diff tool keeps them
+        // instead of overwriting Left from the shared document.
+        seeded: true,
+      });
+    }
+  } catch {
+    /* ignore corrupt or blocked storage */
+  }
+}
+
+loadDiffBuffers();
+
+$diffBuffers.listen((value) => {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    if (value.left.length + value.right.length > DIFF_PERSIST_MAX) {
+      localStorage.removeItem(DIFF_BUFFERS_KEY);
+      return;
+    }
+    localStorage.setItem(DIFF_BUFFERS_KEY, JSON.stringify(value));
+  } catch {
+    /* ignore quota errors or blocked storage */
+  }
+});
+
+// ---------------------------------------------------------------------------
 // $activeTool — which tool is active
 // ---------------------------------------------------------------------------
 

@@ -39,7 +39,21 @@ import { fc, test } from '@fast-check/vitest';
 
 const THEME_CSS_PATH = resolve(process.cwd(), 'src/styles/theme.css');
 
-/** Parse every `--color-*: #rrggbb;` declaration from the `@theme` block. */
+/**
+ * Extract the body of a single CSS block (`selector { … }`) from the stylesheet.
+ * The theme blocks (`@theme` and `html.dark`) contain no nested braces, so the
+ * first closing brace terminates the block.
+ */
+function extractBlock(css: string, selector: string): string {
+  const start = css.indexOf(selector);
+  if (start === -1) throw new Error(`block "${selector}" not found in theme.css`);
+  const open = css.indexOf('{', start);
+  const close = css.indexOf('}', open);
+  if (open === -1 || close === -1) throw new Error(`malformed block "${selector}"`);
+  return css.slice(open + 1, close);
+}
+
+/** Parse every `--color-*: #rrggbb;` declaration from a block of CSS. */
 function parseColorTokens(css: string): Record<string, string> {
   const tokens: Record<string, string> = {};
   const re = /--color-([a-z0-9-]+)\s*:\s*(#[0-9a-fA-F]{3,8})\s*;/g;
@@ -50,7 +64,20 @@ function parseColorTokens(css: string): Record<string, string> {
   return tokens;
 }
 
-const TOKENS = parseColorTokens(readFileSync(THEME_CSS_PATH, 'utf8'));
+const THEME_CSS = readFileSync(THEME_CSS_PATH, 'utf8');
+
+/** Light-mode tokens come from the `@theme` block. */
+const LIGHT_TOKENS = parseColorTokens(extractBlock(THEME_CSS, '@theme'));
+
+/**
+ * Dark-mode tokens are the light tokens with the `html.dark` overrides applied
+ * on top — exactly how the cascade resolves them at runtime, since dark mode
+ * only redefines a subset of the `--color-*` variables.
+ */
+const DARK_TOKENS = {
+  ...LIGHT_TOKENS,
+  ...parseColorTokens(extractBlock(THEME_CSS, 'html.dark')),
+};
 
 // ─── Color math (WCAG 2.1) ───────────────────────────────────────────────────
 
@@ -124,11 +151,13 @@ interface Pair {
 const SURFACES = ['canvas', 'canvas-soft', 'canvas-soft-2'] as const;
 
 /**
- * Build the pair set. Text tokens are checked against every surface they can
- * appear over; semantic accent text and badge labels against their real
- * backgrounds; control rings/borders as interactive boundaries.
+ * Build the pair set for a given token table. Text tokens are checked against
+ * every surface they can appear over; semantic accent text and badge labels
+ * against their real backgrounds; control rings/borders as interactive
+ * boundaries. The composited badge fills are written back into `tokens` under
+ * synthetic `__badge-*-fill` keys so the pairs can reference them.
  */
-function buildPairs(): Pair[] {
+function buildPairs(tokens: Record<string, string>): Pair[] {
   const pairs: Pair[] = [];
 
   // Primary body/heading/secondary/muted text on each app surface (normal text).
@@ -151,12 +180,12 @@ function buildPairs(): Pair[] {
   // Type-badge labels: `text-badge-X` over `bg-badge-X/10` over canvas (normal text).
   const badges = ['string', 'number', 'bool', 'null', 'array', 'object'] as const;
   for (const b of badges) {
-    const surfaceHex = blend(hexToRgb(TOKENS[`badge-${b}`]), 0.1, hexToRgb(TOKENS.canvas));
+    const surfaceHex = blend(hexToRgb(tokens[`badge-${b}`]), 0.1, hexToRgb(tokens.canvas));
     const surfaceLiteral = `#${[surfaceHex.r, surfaceHex.g, surfaceHex.b]
       .map((c) => Math.round(c).toString(16).padStart(2, '0'))
       .join('')}`;
     // Register the composited surface as a literal so the pair can reference it.
-    TOKENS[`__badge-${b}-fill`] = surfaceLiteral;
+    tokens[`__badge-${b}-fill`] = surfaceLiteral;
     pairs.push({
       id: `badge-${b} label on badge-${b}/10 fill`,
       fg: `badge-${b}`,
@@ -172,7 +201,8 @@ function buildPairs(): Pair[] {
   return pairs;
 }
 
-const PAIRS = buildPairs();
+const LIGHT_PAIRS = buildPairs(LIGHT_TOKENS);
+const DARK_PAIRS = buildPairs(DARK_TOKENS);
 
 /** Minimum required ratio for a usage class. */
 function threshold(usage: Usage): number {
@@ -180,10 +210,13 @@ function threshold(usage: Usage): number {
 }
 
 /** Resolve a token name or literal hex to RGB, applying any fg alpha over the surface. */
-function resolvePairColors(pair: Pair): { fg: RGB; bg: RGB; ratio: number } {
-  const bgHex = TOKENS[pair.surface] ?? pair.surface;
+function resolvePairColors(
+  pair: Pair,
+  tokens: Record<string, string>,
+): { fg: RGB; bg: RGB; ratio: number } {
+  const bgHex = tokens[pair.surface] ?? pair.surface;
   const bg = hexToRgb(bgHex);
-  const fgHex = TOKENS[pair.fg] ?? pair.fg;
+  const fgHex = tokens[pair.fg] ?? pair.fg;
   let fg = hexToRgb(fgHex);
   if (pair.fgAlpha !== undefined && pair.fgAlpha < 1) {
     fg = blend(fg, pair.fgAlpha, bg);
@@ -196,20 +229,38 @@ function resolvePairColors(pair: Pair): { fg: RGB; bg: RGB; ratio: number } {
 describe('Property 35: Design token contrast meets WCAG AA (Req 22.6)', () => {
   it('parsed the expected color tokens from theme.css', () => {
     // Sanity guard so a broken parse cannot make the property vacuously pass.
-    expect(TOKENS.canvas).toBe('#ffffff');
-    expect(TOKENS.ink).toBe('#171717');
-    expect(PAIRS.length).toBeGreaterThanOrEqual(20);
+    expect(LIGHT_TOKENS.canvas).toBe('#ffffff');
+    expect(LIGHT_TOKENS.ink).toBe('#171717');
+    expect(LIGHT_PAIRS.length).toBeGreaterThanOrEqual(20);
+    // Dark mode redefines the surfaces and ink, so its tokens must differ.
+    expect(DARK_TOKENS.canvas).toBe('#111111');
+    expect(DARK_TOKENS.ink).toBe('#ededed');
   });
 
   // Property: for ALL text-on-surface / boundary token pairs the UI composes,
-  // the computed contrast ratio meets its WCAG AA threshold.
-  test.prop([fc.constantFrom(...PAIRS)], { numRuns: 100 })(
-    'every UI token pair meets its WCAG AA contrast threshold',
+  // the computed contrast ratio meets its WCAG AA threshold — in light mode.
+  test.prop([fc.constantFrom(...LIGHT_PAIRS)], { numRuns: 100 })(
+    'every light-mode UI token pair meets its WCAG AA contrast threshold',
     (pair) => {
-      const { ratio } = resolvePairColors(pair);
+      const { ratio } = resolvePairColors(pair, LIGHT_TOKENS);
       const min = threshold(pair.usage);
       // Throwing with a descriptive message surfaces the offending pair in the
       // fast-check counterexample.
+      if (ratio + 1e-9 < min) {
+        throw new Error(
+          `${pair.id}: contrast ${ratio.toFixed(3)}:1 < required ${min}:1 (${pair.usage})`,
+        );
+      }
+      return true;
+    },
+  );
+
+  // The same property must hold for the dark-mode palette (`html.dark` tokens).
+  test.prop([fc.constantFrom(...DARK_PAIRS)], { numRuns: 100 })(
+    'every dark-mode UI token pair meets its WCAG AA contrast threshold',
+    (pair) => {
+      const { ratio } = resolvePairColors(pair, DARK_TOKENS);
+      const min = threshold(pair.usage);
       if (ratio + 1e-9 < min) {
         throw new Error(
           `${pair.id}: contrast ${ratio.toFixed(3)}:1 < required ${min}:1 (${pair.usage})`,

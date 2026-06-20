@@ -98,6 +98,33 @@ const csp = [
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
     <title>{title}</title>
+
+    {/*
+      No-FOUC theme bootstrap. Runs before first paint so the correct theme is
+      applied synchronously — no flash of the wrong palette on load. It reads a
+      saved preference from localStorage, falling back to the OS
+      `prefers-color-scheme` setting, then mirrors the choice onto <html> as the
+      `dark` class (consumed by the dark token overrides in theme.css) and the
+      native `color-scheme` property (so form controls/scrollbars match). All
+      logic stays on-device, consistent with the privacy-first CSP above.
+    */}
+    <script is:inline>
+      (function () {
+        try {
+          var stored = localStorage.getItem('theme');
+          var theme =
+            stored === 'light' || stored === 'dark'
+              ? stored
+              : window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light';
+          document.documentElement.classList.toggle('dark', theme === 'dark');
+          document.documentElement.style.colorScheme = theme;
+        } catch (e) {
+          /* localStorage/matchMedia unavailable — default to the light theme. */
+        }
+      })();
+    </script>
   </head>
   <body>
     <slot />

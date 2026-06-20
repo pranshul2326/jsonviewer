@@ -46,6 +46,13 @@ export interface SemanticDiffListProps {
   leftText?: string;
   /** Right (modified) document text. */
   rightText?: string;
+  /**
+   * Reports the total number of structural differences whenever it changes, or
+   * `null` while a document is invalid / the comparison is pending. Lets a
+   * composing parent surface the count somewhere always-visible (e.g. the tool
+   * toolbar) without recomputing the diff.
+   */
+  onCount?: (count: number | null) => void;
 }
 
 /** Presentation metadata for each difference kind (Req 8.1, distinct styles). */
@@ -174,6 +181,7 @@ function DifferenceRow({ difference }: { difference: Difference }) {
 export function SemanticDiffList({
   leftText = '',
   rightText = '',
+  onCount,
 }: SemanticDiffListProps) {
   // Small inputs diff inline; large inputs route through the worker.
   const small = !isAnyLarge(leftText, rightText);
@@ -249,12 +257,34 @@ export function SemanticDiffList({
 
   const showProgress = !small && progress !== null;
 
+  // The total number of structural differences, shown as a count badge once a
+  // valid comparison exists (Req 8.1 surface). `null` while invalid/pending.
+  const diffCount =
+    view !== null && view.bothValid && view.differences
+      ? view.differences.length
+      : null;
+
+  // Surface the count to a composing parent (Diff tool toolbar) when it changes.
+  useEffect(() => {
+    onCount?.(diffCount);
+  }, [diffCount, onCount]);
+
   return (
     <div
-      class="flex h-full flex-col gap-3 overflow-auto bg-canvas-soft p-4"
+      class="flex flex-col gap-3 rounded-lg border border-hairline bg-canvas-soft p-4"
       data-component="semantic-diff-list"
     >
-      <h2 class="font-sans text-body-md-strong text-ink">Semantic diff</h2>
+      <div class="flex items-center gap-2">
+        <h2 class="font-sans text-body-md-strong text-ink">Semantic diff</h2>
+        {diffCount !== null ? (
+          <span
+            class="inline-flex items-center rounded-full bg-canvas-soft-2 px-2 py-0.5 font-sans text-caption text-body"
+            data-region="difference-count"
+          >
+            {diffCount} {diffCount === 1 ? 'difference' : 'differences'}
+          </span>
+        ) : null}
+      </div>
 
       {/* Worker progress indicator for a Large_Document diff (Req 17.3). */}
       {showProgress ? (
@@ -291,7 +321,7 @@ export function SemanticDiffList({
           ))}
         </div>
       ) : view !== null && view.differences && view.differences.length > 0 ? (
-        <ul class="flex flex-col gap-2" data-region="difference-list">
+        <ul class="flex max-h-[60vh] flex-col gap-2 overflow-auto" data-region="difference-list">
           {view.differences.map((difference) => (
             <DifferenceRow
               key={`${difference.kind}:${difference.path}`}

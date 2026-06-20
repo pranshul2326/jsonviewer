@@ -25,7 +25,9 @@
 
 import { useStore } from '@nanostores/preact';
 import { useState } from 'preact/hooks';
+import type { ComponentChildren } from 'preact';
 import { $activeTool, setActiveTool, type Tool } from '../../lib/stores/document';
+import ThemeToggle from './ThemeToggle';
 
 /** A single navigation entry: its Tool id and the visible text label (Req 21.1). */
 interface NavEntry {
@@ -69,6 +71,11 @@ function navLinkClass(isActive: boolean): string {
 export interface NavigationBarProps {
   /** Accessible label for the navigation landmark. */
   label?: string;
+  /**
+   * Optional trailing content rendered on the right of the bar (e.g. the Share
+   * control), so it shares the nav row instead of taking its own top space.
+   */
+  trailing?: ComponentChildren;
 }
 
 /**
@@ -76,7 +83,7 @@ export interface NavigationBarProps {
  * active-state indicator stays in sync with the rest of the app, and writes via
  * `setActiveTool` on selection.
  */
-export function NavigationBar({ label = 'Primary' }: NavigationBarProps) {
+export function NavigationBar({ label = 'Primary', trailing }: NavigationBarProps) {
   const activeTool = useStore($activeTool);
   // Open/closed state for the collapsed mobile menu (<960px) only. The desktop
   // row never consults this — it is always visible at ≥960px.
@@ -96,63 +103,73 @@ export function NavigationBar({ label = 'Primary' }: NavigationBarProps) {
       {/* Brand wordmark (decorative; not one of the four tool entries). */}
       <span class="font-sans text-body-sm-strong text-ink select-none">JSON Viewer Free</span>
 
-      {/* ── Full horizontal layout (≥960px): all four entries, no toggle (Req 22.5) ── */}
-      <ul class="hidden min-[960px]:flex items-center gap-1" role="list">
-        {NAV_ENTRIES.map((entry) => {
-          const isActive = entry.tool === activeTool;
-          return (
-            <li key={entry.tool}>
-              <button
-                type="button"
-                class={navLinkClass(isActive)}
-                aria-current={isActive ? 'page' : undefined}
-                data-active={isActive ? 'true' : 'false'}
-                data-tool={entry.tool}
-                onClick={() => select(entry.tool)}
-              >
-                {entry.label}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+      {/* Right cluster: tool entries (desktop), trailing slot (Share), and the
+          mobile toggle — all on the single nav row to save vertical space. */}
+      <div class="flex items-center gap-2">
+        {/* ── Full horizontal layout (≥960px): all four entries, no toggle (Req 22.5) ── */}
+        <ul class="hidden min-[960px]:flex items-center gap-1" role="list">
+          {NAV_ENTRIES.map((entry) => {
+            const isActive = entry.tool === activeTool;
+            return (
+              <li key={entry.tool}>
+                <button
+                  type="button"
+                  class={navLinkClass(isActive)}
+                  aria-current={isActive ? 'page' : undefined}
+                  data-active={isActive ? 'true' : 'false'}
+                  data-tool={entry.tool}
+                  onClick={() => select(entry.tool)}
+                >
+                  {entry.label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
 
-      {/* ── Collapsed mobile layout (<960px): single toggle control (Req 22.3, 22.4) ── */}
-      <button
-        type="button"
-        class="inline-flex min-[960px]:hidden items-center justify-center rounded-full p-2 text-body transition-colors hover:bg-canvas-soft-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-link/50"
-        aria-label="Toggle navigation menu"
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
-        aria-controls="nav-mobile-menu"
-        data-toggle="nav-menu"
-        onClick={() => setMenuOpen((open) => !open)}
-      >
-        {/* Hamburger / close glyph driven by open state. */}
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 20 20"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.6"
-          stroke-linecap="round"
-          aria-hidden="true"
+        {/* Trailing content (e.g. the Share control). */}
+        {trailing ? <div class="flex items-center">{trailing}</div> : null}
+
+        {/* Light/dark theme toggle — always visible at every breakpoint. */}
+        <ThemeToggle />
+
+        {/* ── Collapsed mobile layout (<960px): single toggle control (Req 22.3, 22.4) ── */}
+        <button
+          type="button"
+          class="inline-flex min-[960px]:hidden items-center justify-center rounded-full p-2 text-body transition-colors hover:bg-canvas-soft-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-link/50"
+          aria-label="Toggle navigation menu"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          aria-controls="nav-mobile-menu"
+          data-toggle="nav-menu"
+          onClick={() => setMenuOpen((open) => !open)}
         >
-          {menuOpen ? (
-            <>
-              <line x1="5" y1="5" x2="15" y2="15" />
-              <line x1="15" y1="5" x2="5" y2="15" />
-            </>
-          ) : (
-            <>
-              <line x1="3" y1="6" x2="17" y2="6" />
-              <line x1="3" y1="10" x2="17" y2="10" />
-              <line x1="3" y1="14" x2="17" y2="14" />
-            </>
-          )}
-        </svg>
-      </button>
+          {/* Hamburger / close glyph driven by open state. */}
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            {menuOpen ? (
+              <>
+                <line x1="5" y1="5" x2="15" y2="15" />
+                <line x1="15" y1="5" x2="5" y2="15" />
+              </>
+            ) : (
+              <>
+                <line x1="3" y1="6" x2="17" y2="6" />
+                <line x1="3" y1="10" x2="17" y2="10" />
+                <line x1="3" y1="14" x2="17" y2="14" />
+              </>
+            )}
+          </svg>
+        </button>
+      </div>
 
       {/* Mobile menu panel: revealed by the toggle, hidden at ≥960px. */}
       {menuOpen && (

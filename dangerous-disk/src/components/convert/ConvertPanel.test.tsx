@@ -84,9 +84,9 @@ describe('ConvertPanel format → JSON', () => {
 
     render(<ConvertPanel convert={convert} />, container);
 
-    // Switch to the "YAML → JSON" direction.
-    const toJsonButton = Array.from(container.querySelectorAll('button')).find(
-      (b) => b.textContent === 'YAML → JSON',
+    // Switch to the "YAML → JSON" direction via the swap control.
+    const toJsonButton = container.querySelector<HTMLButtonElement>(
+      'button[data-action="swap-direction"]',
     )!;
     toJsonButton.click();
     await tick();
@@ -152,8 +152,8 @@ describe('ConvertPanel failure leaves the source unchanged (Req 13.4, 13.10)', (
 
     render(<ConvertPanel convert={convert} />, container);
 
-    const toJsonButton = Array.from(container.querySelectorAll('button')).find(
-      (b) => b.textContent === 'YAML → JSON',
+    const toJsonButton = container.querySelector<HTMLButtonElement>(
+      'button[data-action="swap-direction"]',
     )!;
     toJsonButton.click();
     await tick();

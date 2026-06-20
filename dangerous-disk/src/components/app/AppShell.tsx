@@ -328,10 +328,17 @@ export interface AppShellProps {
    * the success and copy-failure paths deterministically.
    */
   writeClipboard?: WriteClipboard;
+  /**
+   * Whether the Share-link control is shown in the navigation bar. Defaults to
+   * `true`. Temporarily set to `false` in production to hide the feature until
+   * it is re-enabled (the share load/encode logic is left intact).
+   */
+  enableShare?: boolean;
 }
 
 export default function AppShell({
   writeClipboard = defaultWriteClipboard,
+  enableShare = true,
 }: AppShellProps = {}) {
   const activeTool = useStore($activeTool);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -432,21 +439,24 @@ export default function AppShell({
   }, []);
 
   const ActivePanel = PANELS[activeTool];
-  // The Viewer grows to its content (the page scrolls). The other tools keep a
-  // fixed, viewport-tall card so their internal virtualization / Monaco diff
-  // have a bounded scroll area.
-  const fillTool = activeTool !== 'viewer';
+  // The Viewer and Diff tools grow to their content (the page scrolls), so the
+  // editor/tree/semantic-list/patch are all reachable rather than crammed into
+  // one fixed card. The Grid and Converter keep a fixed, viewport-tall card so
+  // their internal virtualization has a bounded scroll area.
+  const fillTool = activeTool !== 'viewer' && activeTool !== 'diff';
 
   return (
     <section
       aria-label="Json Viewer Free workbench"
       class="flex min-h-0 flex-1 flex-col gap-sm"
     >
-      <NavigationBar />
-
-      {/* Share-link manager (Req 20): request a link, copy it, and surface the
-          success / error feedback. */}
-      <ShareControl onShare={onShare} feedback={shareFeedback} />
+      <NavigationBar
+        trailing={
+          enableShare ? (
+            <ShareControl onShare={onShare} feedback={shareFeedback} />
+          ) : undefined
+        }
+      />
 
       {/* Only the active tool view is rendered, so it is the single visible
           tool view (Req 21.2/21.3). The shared $document is preserved across
@@ -455,8 +465,8 @@ export default function AppShell({
           (editor/tree/grid) is tall rather than leaving empty space below. */}
       <div
         data-active-tool={activeTool}
-        class={`flex flex-col overflow-hidden rounded-md border border-hairline bg-canvas shadow-level-1 ${
-          fillTool ? 'h-[calc(100dvh-13rem)] min-h-0' : ''
+        class={`mx-lg mb-md flex flex-col overflow-hidden rounded-md border border-hairline bg-canvas shadow-level-1 ${
+          fillTool ? 'h-[calc(100dvh-6rem)] min-h-0' : ''
         }`}
       >
         <ActivePanel />

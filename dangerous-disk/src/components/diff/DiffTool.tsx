@@ -20,7 +20,8 @@
 // chrome derives from design tokens (Req 22.1).
 
 import { useState } from 'preact/hooks';
-import { $document } from '../../lib/stores/document';
+import { useStore } from '@nanostores/preact';
+import { $document, $diffBuffers } from '../../lib/stores/document';
 import DiffPanel from './DiffPanel';
 import { SemanticDiffList } from './SemanticDiffList';
 import { PatchExport } from './PatchExport';
@@ -42,19 +43,33 @@ const TAB_INACTIVE = 'text-body hover:text-ink';
  * document on entry) and switches between the compare and merge modes.
  */
 export default function DiffTool() {
-  const [mode, setMode] = useState<DiffMode>('compare');
+  // Seed Left from the shared document the first time the Diff tool is opened
+  // in this session. The buffers live in a shared store so both pasted
+  // documents survive switching to another tool and back (Req 21.5/21.6); the
+  // shared `$document` itself is never mutated here.
+  useState(() => {
+    const buffers = $diffBuffers.get();
+    if (!buffers.seeded) {
+      $diffBuffers.set({ ...buffers, left: $document.get().text, seeded: true });
+    }
+    return null;
+  });
 
-  // Seed Left from the shared document on entry; Right starts empty. These are
-  // the tool's own buffers — the shared `$document` store is never mutated here
-  // (Req 21.6), so other tools see the document unchanged when returning.
-  const [leftText, setLeftText] = useState(() => $document.get().text);
-  const [rightText, setRightText] = useState('');
+  const { left: leftText, right: rightText, mode } = useStore($diffBuffers);
+
+  // Total structural differences, surfaced by the semantic diff list so it can
+  // be shown in the always-visible toolbar (not just in the list below).
+  const [diffCount, setDiffCount] = useState<number | null>(null);
+
+  const setMode = (next: DiffMode) => $diffBuffers.setKey('mode', next);
+  const setLeftText = (text: string) => $diffBuffers.setKey('left', text);
+  const setRightText = (text: string) => $diffBuffers.setKey('right', text);
 
   return (
     <section
       aria-label="Diff Checker panel"
       data-tool-panel="diff"
-      class="flex min-h-0 flex-1 flex-col gap-md"
+      class="flex flex-col gap-md p-md"
     >
       {/* Mode toggle: Compare (diff + semantic list + patch) vs Merge. */}
       <div
@@ -83,25 +98,29 @@ export default function DiffTool() {
       </div>
 
       {mode === 'compare' ? (
-        <div class="flex min-h-0 flex-1 flex-col gap-md" data-mode-panel="compare">
-          {/* Monaco diff editor: the single Left/Right input + visualization. */}
-          <div class="min-h-[20rem] flex-1 overflow-hidden rounded-lg border border-hairline">
+        <div class="flex flex-col gap-md" data-mode-panel="compare">
+          {/* Monaco diff editor: the single Left/Right input + visualization.
+              Given a tall, viewport-based height so the two JSON panes are large
+              (like the Viewer); the semantic list and patch export flow below it
+              and the page scrolls. */}
+          <div class="h-[75vh] shrink-0 overflow-hidden rounded-lg border border-hairline">
             <DiffPanel
               initialLeft={leftText}
               initialRight={rightText}
               onLeftChange={setLeftText}
               onRightChange={setRightText}
+              differenceCount={diffCount}
             />
           </div>
 
           {/* Path-keyed semantic difference list (Req 8). */}
-          <SemanticDiffList leftText={leftText} rightText={rightText} />
+          <SemanticDiffList leftText={leftText} rightText={rightText} onCount={setDiffCount} />
 
           {/* RFC 6902 JSON Patch export (Req 10). */}
           <PatchExport left={leftText} right={rightText} />
         </div>
       ) : (
-        <div class="min-h-0 flex-1 overflow-hidden" data-mode-panel="merge">
+        <div class="h-[calc(100dvh-14rem)] overflow-hidden" data-mode-panel="merge">
           <MergePanel />
         </div>
       )}

@@ -249,7 +249,7 @@ export default function ViewerPanel({ progress, progressLabel }: ViewerPanelProp
             The editor auto-sizes to its content (capped), so a folded/short
             document leaves no empty canvas. */}
         <div
-          class="flex min-h-[calc(100dvh-13rem)] min-w-0 flex-col border-b border-hairline md:border-b-0"
+          class="flex h-[calc(100dvh-13rem)] min-w-0 flex-col border-b border-hairline md:border-b-0"
           style={isWide ? { flex: `0 0 ${leftPct}%` } : { flex: '1 1 0' }}
         >
           <div class="flex items-center gap-xs border-b border-hairline px-sm py-xs">
@@ -272,7 +272,7 @@ export default function ViewerPanel({ progress, progressLabel }: ViewerPanelProp
               Minify
             </button>
           </div>
-          <div class="min-w-0 overflow-hidden">
+          <div class="min-h-0 flex-1 min-w-0 overflow-hidden">
             <EditorPane />
           </div>
         </div>

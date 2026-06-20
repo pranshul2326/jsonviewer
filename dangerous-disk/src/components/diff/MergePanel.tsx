@@ -142,7 +142,7 @@ function DocumentInput({
       </label>
       <textarea
         id={`merge-input-${role}`}
-        class="h-48 w-full resize-y rounded-sm border border-hairline bg-canvas p-2 font-mono text-code text-ink outline-none focus:border-hairline-strong"
+        class="h-[38vh] min-h-[12rem] w-full resize-y rounded-sm border border-hairline bg-canvas p-2 font-mono text-code text-ink outline-none focus:border-hairline-strong"
         style={
           invalid ? { borderColor: 'var(--color-error)' } : undefined
         }
@@ -406,6 +406,21 @@ export function MergePanel() {
     <div class="flex h-full flex-col gap-4 overflow-auto bg-canvas-soft p-4" data-component="merge-panel">
       <h2 class="font-sans text-display-sm text-ink">Three-way merge</h2>
 
+      {/* Plain-language explainer: how a three-way merge works. */}
+      <p class="font-sans text-body-sm text-body" data-region="merge-explainer">
+        Merge two edited versions of the same JSON. Paste the original into{' '}
+        <span class="font-sans text-body-sm-strong text-ink">Base</span>, and the
+        two changed copies into{' '}
+        <span class="font-sans text-body-sm-strong text-ink">Left</span> and{' '}
+        <span class="font-sans text-body-sm-strong text-ink">Right</span>.{' '}
+        <span class="font-sans text-body-sm-strong text-ink">
+          Changes from one side are merged automatically.
+        </span>{' '}
+        If both sides edit the same field, it&apos;s a{' '}
+        <span class="font-sans text-body-sm-strong text-ink">conflict</span> — pick
+        which value to keep, then export the result.
+      </p>
+
       {/* Base / Left / Right inputs with per-document validation (Req 11.9). */}
       <div class="grid gap-4 lg:grid-cols-3">
         <DocumentInput role="base" value={baseText} parsed={baseParsed} onInput={setBaseText} />
@@ -463,7 +478,7 @@ export function MergePanel() {
       )}
 
       {/* Export gating (Req 11.7) + merged output (Req 11.8). */}
-      <section class="mt-auto" data-section="export">
+      <section data-section="export">
         {!allReady ? (
           // While a large merge is computing, the progress banner speaks for the
           // panel; the awaiting-input hint is only for genuinely missing input.

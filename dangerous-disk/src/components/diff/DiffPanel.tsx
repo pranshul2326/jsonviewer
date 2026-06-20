@@ -40,9 +40,18 @@ import {
   computeDiffViewState,
   type DiffDocError,
 } from './diff-view-state';
+import { parseJson } from '../../lib/json-core/parse';
+import { format } from '../../lib/json-core/serialize';
+import { $settings } from '../../lib/stores/document';
 import type { Difference } from '../../lib/json-core/diff';
 import { isAnyLarge } from '../../lib/workers/large-document';
 import { JobCancelledError, WorkerClient } from '../../lib/workers/worker-client';
+import {
+  applyMonacoTheme,
+  defineMonacoThemes,
+  diffThemeName,
+  onAppThemeChange,
+} from '../../lib/monaco-theme';
 import type * as Monaco from 'monaco-editor';
 
 /** Debounce window before re-evaluating the documents after the last edit. */
@@ -65,28 +74,21 @@ export interface DiffPanelProps {
   onLeftChange?: (text: string) => void;
   /** Called with the Right (modified) text whenever it changes in the editor. */
   onRightChange?: (text: string) => void;
+  /**
+   * Total number of structural differences between the two documents, used to
+   * render the centered status banner ("N differences found" / "No differences
+   * found"). `null` while a document is invalid or the comparison is pending.
+   */
+  differenceCount?: number | null;
 }
 
 /**
  * A token-driven Monaco theme so diff add/delete colors derive from the design
  * system rather than Monaco's defaults (Req 9.3/9.4, design: Diff visualization).
  * Inserted content uses the green (cyan-deep) token; removed content uses the
- * error token. Alpha is appended for the translucent line/text fills.
+ * error token. The light/dark variants live in `lib/monaco-theme.ts` so the
+ * Viewer and Diff editors share one source of truth and both follow dark mode.
  */
-const DIFF_THEME: Monaco.editor.IStandaloneThemeData = {
-  base: 'vs',
-  inherit: true,
-  rules: [],
-  colors: {
-    // Additions (Req 9.3) — green, present only on the modified side.
-    'diffEditor.insertedTextBackground': '#29bc9b33',
-    'diffEditor.insertedLineBackground': '#29bc9b1f',
-    // Deletions (Req 9.4) — red, present only on the original side.
-    'diffEditor.removedTextBackground': '#ee000033',
-    'diffEditor.removedLineBackground': '#ee00001f',
-  },
-};
-
 /** Shared base classes for the view-toggle segmented control buttons. */
 const TOGGLE_BASE =
   'inline-flex items-center font-sans text-button-md rounded-md px-3 py-1.5 ' +
@@ -105,6 +107,7 @@ export function DiffPanel({
   initialRight = '',
   onLeftChange,
   onRightChange,
+  differenceCount = null,
 }: DiffPanelProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -148,6 +151,8 @@ export function DiffPanel({
     let disposed = false;
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const subscriptions: Monaco.IDisposable[] = [];
+    // Stops observing app theme toggles on cleanup.
+    let unsubscribeTheme: (() => void) | null = null;
     // Lazily-created worker client used only to diff Large_Documents off the
     // main thread (Req 17.1). Small documents never construct it.
     let diffClient: WorkerClient | null = null;
@@ -282,11 +287,12 @@ export function DiffPanel({
         enableSchemaRequest: false,
       });
 
-      // Token-driven diff colors (Req 9.3/9.4).
-      monaco.editor.defineTheme('jvf-diff', DIFF_THEME);
+      // Token-driven diff colors (Req 9.3/9.4), with light/dark variants that
+      // follow the app theme.
+      defineMonacoThemes(monaco);
 
       editor = monaco.editor.createDiffEditor(container, {
-        theme: 'jvf-diff',
+        theme: diffThemeName(),
         // Side-by-side (Req 9.1) vs unified (Req 9.2) toggled live.
         renderSideBySide: viewModeRef.current === 'side-by-side',
         originalEditable: true, // Left pane is an editable document input.
@@ -294,6 +300,10 @@ export function DiffPanel({
         automaticLayout: true,
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
+        // Let the wheel chain to the page once the editor reaches a scroll end,
+        // so long JSON can be scrolled through to the very bottom/top (matches
+        // the Viewer's editor behavior).
+        scrollbar: { alwaysConsumeMouseWheel: false },
         renderOverviewRuler: false,
         ignoreTrimWhitespace: false,
         fontFamily:
@@ -331,12 +341,19 @@ export function DiffPanel({
 
       // Seed banners for the initial content.
       evaluate();
+
+      // Follow live app theme toggles: re-apply the matching diff theme when
+      // the user flips dark mode while the diff editor is mounted.
+      unsubscribeTheme = onAppThemeChange(() => {
+        if (monaco) applyMonacoTheme(monaco, 'diff');
+      });
     })();
 
     return () => {
       disposed = true;
       clearDebounce();
       for (const sub of subscriptions) sub.dispose();
+      unsubscribeTheme?.();
       diffClient?.dispose(true);
       diffClient = null;
       originalModelRef.current?.dispose();
@@ -355,38 +372,67 @@ export function DiffPanel({
     });
   }, [viewMode]);
 
-  // The no-differences message is shown only once a valid comparison exists,
-  // there are no outstanding parse errors, and the documents are identical.
-  const showNoDifferences = hasResult && errors.length === 0 && noDifferences;
+  // Format (beautify / indent) both documents in place using the shared
+  // indentation setting. Each side is parsed and re-serialized; an empty or
+  // invalid side is left untouched. Setting the model value triggers the normal
+  // change → re-evaluate path, so the buffers and diff stay in sync.
+  const onFormat = () => {
+    const style = $settings.get().indentStyle;
+    for (const model of [originalModelRef.current, modifiedModelRef.current]) {
+      if (!model) continue;
+      const result = parseJson(model.getValue());
+      if (result.ok && !result.empty) {
+        const formatted = format(result.model, style);
+        if (formatted !== model.getValue()) model.setValue(formatted);
+      }
+    }
+  };
+
+  // The status banner (centered) shows the difference count once a valid
+  // comparison exists and there are no outstanding parse errors: the total
+  // count when the documents differ, or "No differences found" when identical.
+  const showCountBanner = differenceCount !== null && errors.length === 0;
 
   return (
     <div class="flex h-full flex-col bg-canvas" data-component="diff-panel">
       {/* ── Toolbar: view toggle (Req 9.1 / 9.2) ───────────────────────────── */}
       <div class="flex items-center justify-between gap-4 border-b border-hairline px-4 py-2">
         <span class="font-sans text-body-sm-strong text-ink">Diff Checker</span>
-        <div
-          class="inline-flex items-center gap-1 rounded-lg bg-canvas-soft-2 p-1"
-          role="group"
-          aria-label="Diff view mode"
-        >
+        <div class="flex items-center gap-2">
+          {/* Format both documents (beautify / indent) with one click. */}
           <button
             type="button"
-            class={`${TOGGLE_BASE} ${viewMode === 'side-by-side' ? TOGGLE_ACTIVE : TOGGLE_INACTIVE}`}
-            aria-pressed={viewMode === 'side-by-side'}
-            data-view="side-by-side"
-            onClick={() => setViewMode('side-by-side')}
+            class="inline-flex items-center rounded-md px-3 py-1.5 font-sans text-button-md text-body ring-1 ring-inset ring-hairline transition-colors cursor-pointer hover:bg-canvas-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-link/50"
+            data-action="format-both"
+            title="Format both documents (beautify / indent)"
+            onClick={onFormat}
           >
-            Side by side
+            Format JSON
           </button>
-          <button
-            type="button"
-            class={`${TOGGLE_BASE} ${viewMode === 'unified' ? TOGGLE_ACTIVE : TOGGLE_INACTIVE}`}
-            aria-pressed={viewMode === 'unified'}
-            data-view="unified"
-            onClick={() => setViewMode('unified')}
+          <div
+            class="inline-flex items-center gap-1 rounded-lg bg-canvas-soft-2 p-1"
+            role="group"
+            aria-label="Diff view mode"
           >
-            Unified
-          </button>
+            <button
+              type="button"
+              class={`${TOGGLE_BASE} ${viewMode === 'side-by-side' ? TOGGLE_ACTIVE : TOGGLE_INACTIVE}`}
+              aria-pressed={viewMode === 'side-by-side'}
+              data-view="side-by-side"
+              onClick={() => setViewMode('side-by-side')}
+            >
+              Side by side
+            </button>
+            <button
+              type="button"
+              class={`${TOGGLE_BASE} ${viewMode === 'unified' ? TOGGLE_ACTIVE : TOGGLE_INACTIVE}`}
+              aria-pressed={viewMode === 'unified'}
+              data-view="unified"
+              onClick={() => setViewMode('unified')}
+            >
+              Unified
+            </button>
+          </div>
         </div>
       </div>
 
@@ -439,28 +485,36 @@ export function DiffPanel({
         </div>
       )}
 
-      {/* ── No-differences message (Req 9.6) ───────────────────────────────── */}
-      {showNoDifferences && (
+      {/* ── Difference count / no-differences message, centered (Req 9.6) ──── */}
+      {showCountBanner && (
         <div
-          class="flex items-center gap-2 border-b border-hairline bg-canvas-soft px-4 py-2"
+          class="flex items-center justify-center gap-2 border-b border-hairline bg-canvas-soft px-4 py-2"
           role="status"
-          data-region="no-differences"
+          data-region={differenceCount === 0 ? 'no-differences' : 'difference-summary'}
         >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="text-success"
-            aria-hidden="true"
-          >
-            <path d="M3.5 8.5l3 3 6-7" />
-          </svg>
-          <span class="font-sans text-body-sm text-body">No differences found</span>
+          {differenceCount === 0 ? (
+            <>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="text-success"
+                aria-hidden="true"
+              >
+                <path d="M3.5 8.5l3 3 6-7" />
+              </svg>
+              <span class="font-sans text-body-sm text-body">No differences found</span>
+            </>
+          ) : (
+            <span class="font-sans text-body-sm-strong text-ink">
+              {differenceCount} {differenceCount === 1 ? 'difference' : 'differences'} found
+            </span>
+          )}
         </div>
       )}
 

@@ -274,15 +274,14 @@ export function PatchExport({
 
   return (
     <section
-      class="flex h-full flex-col gap-3 overflow-auto bg-canvas-soft p-4"
+      class="flex flex-col gap-3 rounded-lg border border-hairline bg-canvas-soft p-4"
       data-component="patch-export"
     >
       <div class="flex items-center justify-between gap-2">
         <h2 class="font-sans text-display-sm text-ink">JSON Patch (RFC 6902)</h2>
 
         {/* Copy control (Req 10.4). */}
-        <div class="flex items-center gap-2">
-          {copyState === 'copied' ? (
+        <div class="flex items-center gap-2">          {copyState === 'copied' ? (
             <span
               class="font-sans text-caption text-badge-bool"
               role="status"
@@ -312,6 +311,20 @@ export function PatchExport({
           </button>
         </div>
       </div>
+
+      {/* Plain-language explainer: what a JSON Patch is and how to use it. */}
+      <p class="font-sans text-body-sm text-body" data-region="patch-explainer">
+        A JSON Patch is a small, standard recipe (RFC 6902) that lists the exact
+        steps — <code class="font-mono text-caption-mono text-ink">add</code>,{' '}
+        <code class="font-mono text-caption-mono text-ink">remove</code>, and{' '}
+        <code class="font-mono text-caption-mono text-ink">replace</code> — needed
+        to turn the Left (original) document into the Right (modified) one. Copy it
+        and apply it with any RFC 6902 library (for example{' '}
+        <code class="font-mono text-caption-mono text-ink">fast-json-patch</code> in
+        JavaScript or <code class="font-mono text-caption-mono text-ink">jsonpatch</code>{' '}
+        in Python) to update a document programmatically, or send just these changes
+        to an API instead of the whole file.
+      </p>
 
       {/* Large-document worker progress (Req 17.3). */}
       {progress !== null ? (

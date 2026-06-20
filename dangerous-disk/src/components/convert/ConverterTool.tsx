@@ -51,7 +51,7 @@ export default function ConverterTool() {
     <section
       aria-label="Converter panel"
       data-tool-panel="converter"
-      class="flex min-h-0 flex-1 flex-col gap-md"
+      class="flex min-h-0 flex-1 flex-col gap-md p-md"
     >
       {/* Sub-mode toggle: Convert / Code / Query. */}
       <div

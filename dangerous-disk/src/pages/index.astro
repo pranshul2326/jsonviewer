@@ -21,60 +21,36 @@ import AppShell from '../components/app/AppShell.tsx';
 ---
 
 <!-- Full-height flex column: a compact hero on top, the workbench filling the
-     rest of the viewport so there is no dead space below it. -->
+     rest of the viewport so there is no dead space below it. The mesh-gradient
+     theme is painted once behind the whole page (see `.page-mesh`), so it shows
+     through the gaps/margins while the solid cards sit on top of it. -->
 <Layout>
-  <div class="flex min-h-screen flex-col">
-    <!-- ── Compact hero band (Vercel-style): mesh-gradient chrome, a concise
-         headline, and the always-visible privacy statement (Req 18.3). Kept
-         tight so the workbench gets the bulk of the viewport. ─────────────── -->
-    <header class="relative overflow-hidden border-b border-divider">
-      <!-- Decorative mesh gradient — the only decorative chrome (design tokens). -->
-      <div class="hero-mesh" aria-hidden="true"></div>
+  <!-- Page-wide background wash (decorative). Fixed behind all content so the
+       hero theme tints the entire page, not the boxes. -->
+  <div class="page-mesh" aria-hidden="true"></div>
 
-      <div
-        class="relative mx-auto flex w-full max-w-[1600px] flex-wrap items-center justify-between gap-x-lg gap-y-xs px-lg py-md"
-      >
-        <div class="min-w-0">
-          <h1 class="text-display-sm text-ink min-[960px]:text-display-md">
-            The all-in-one JSON workbench
-          </h1>
-          <p class="mt-xxs text-body-sm text-body">
-            View, format, validate, diff, merge, query, and convert JSON — fast,
-            ad-free, and entirely in your browser.
-          </p>
-        </div>
-
-        <!-- Always-visible privacy statement (Req 18.3). It explicitly states
-             that user data does not leave the machine. -->
-        <p
-          class="inline-flex shrink-0 items-center gap-xs rounded-pill border border-divider bg-canvas px-md py-xs text-caption text-body shadow-level-1"
-          data-privacy-statement
-        >
-          <span aria-hidden="true">🔒</span>
-          100% private: processing happens in your browser. Your data never
-          leaves your machine.
-        </p>
-      </div>
-    </header>
-
-    <!-- ── Interactive workbench island. The Viewer grows with its content so
-         the page scrolls (no empty panes); the other tools keep a fixed,
-         viewport-tall card. `main` is content-sized so the page — not a fixed
-         card — is what scrolls. ───────────────────────────────────────────── -->
+  <div class="relative z-10 flex min-h-screen flex-col">
+    <!-- ── Interactive workbench island. The NavigationBar (brand + tools +
+         share) is the full-width top bar; the Viewer grows with its content so
+         the page scrolls, while the other tools keep a fixed, viewport-tall
+         card. ─────────────────────────────────────────────────────────────── -->
     <main
-      class="mx-auto flex w-full max-w-[1600px] flex-col px-lg py-md"
+      class="flex w-full flex-col"
     >
-      <AppShell client:load />
+      <AppShell client:load enableShare={false} />
     </main>
   </div>
 </Layout>
 
 <style>
   /* Vercel-style mesh gradient, built from brand gradient-stop tokens
-     (Req 22.1: token-driven, no hardcoded palette). Soft, hero-scale wash. */
-  .hero-mesh {
-    position: absolute;
+     (Req 22.1: token-driven, no hardcoded palette). Painted once, fixed behind
+     the entire page so it tints the page background (and the gaps between the
+     solid cards) rather than the cards themselves. */
+  .page-mesh {
+    position: fixed;
     inset: 0;
+    z-index: 0;
     pointer-events: none;
     opacity: 0.12;
     background:

@@ -179,6 +179,66 @@
   --shadow-level-5: 0px 1px 1px #00000005, 0px 8px 16px -4px #0000000a, 0px 24px 32px -8px #0000000f, inset 0 0 0 1px #00000014;
 }
 
+/* ─── Dark theme token overrides ──────────────────────────────────────────
+   Dark mode is opt-in via a `dark` class on the <html> element (set by the
+   no-FOUC inline script in Layout.astro and toggled by the ThemeToggle island).
+   Because every Tailwind utility resolves its color from the `--color-*`
+   tokens via `var()`, redefining those variables here cascades through the
+   whole UI automatically — no per-component dark variants required (Req 22.1).
+   The `html.dark` selector outranks the `:root` defaults emitted by `@theme`,
+   so these values win whenever dark mode is active. */
+html.dark {
+  /* ─── brand / ink ─── */
+  --color-primary: #ededed;        /* light ink doubles as the primary CTA fill */
+  --color-on-primary: #0a0a0a;     /* dark text on the (now light) primary surface */
+  --color-ink: #ededed;            /* headings + body on dark surfaces */
+  --color-body: #a1a1a1;           /* secondary text */
+  --color-mute: #8f8f8f;           /* lowest-priority text / placeholders */
+
+  /* ─── hairlines ─── */
+  --color-divider: #2a2a2a;        /* decorative 1px dividers (non-interactive) */
+  --color-hairline: #6e6e6e;       /* interactive control border — WCAG AA 3:1 on dark canvas */
+  --color-hairline-strong: #7a7a7a;/* emphasized control border — WCAG AA 3:1 on dark canvas */
+
+  /* ─── surfaces ─── */
+  --color-canvas: #111111;         /* card / dialog surface */
+  --color-canvas-soft: #0a0a0a;    /* page background */
+  --color-canvas-soft-2: #1c1c1c;  /* deeper inset surface */
+
+  /* ─── links ─── */
+  --color-link: #3b9eff;
+  --color-link-deep: #66b2ff;
+  --color-link-bg-soft: #14375e;
+
+  /* ─── semantic ─── */
+  --color-success: #3b9eff;
+  --color-error: #ff6166;
+  --color-error-soft: #3a1d1f;
+  --color-error-deep: #ff8a8a;
+  --color-warning: #f5a623;
+  --color-warning-soft: #3a2e15;
+  --color-warning-deep: #f5c451;
+
+  /* ─── selection ─── */
+  --color-selection-bg: #ededed;
+  --color-selection-fg: #0a0a0a;
+
+  /* ─── JSON type badges (lightened for AA contrast on dark /10 fills) ─── */
+  --color-badge-string: #58a6ff;
+  --color-badge-number: #b88dff;
+  --color-badge-bool: #4ddbb0;
+  --color-badge-null: #a1a1a1;
+  --color-badge-array: #f0a050;
+  --color-badge-object: #b88dff;
+
+  /* ─── elevation: light inset hairlines so cards read on dark surfaces ─── */
+  --shadow-level-1: inset 0 0 0 1px #ffffff14;
+  --shadow-level-2: 0px 1px 1px #00000033, 0px 2px 2px #00000033, inset 0 0 0 1px #ffffff14;
+  --shadow-level-3: 0px 2px 2px #00000033, 0px 8px 8px -8px #00000040, inset 0 0 0 1px #ffffff14;
+  --shadow-level-4: 0px 2px 2px #00000033, 0px 8px 16px -4px #00000040, inset 0 0 0 1px #ffffff14;
+  --shadow-level-5: 0px 1px 1px #00000033, 0px 8px 16px -4px #00000040, 0px 24px 32px -8px #0000004d, inset 0 0 0 1px #ffffff14;
+}
+
 /* ─── Editor fold-control glyphs ──────────────────────────────────────────
    Replace Monaco's default codicon fold chevrons (⌄ / ›) with the simple
    triangles ▾ / ▸ in the editor gutter. The codicon icon font has no triangle

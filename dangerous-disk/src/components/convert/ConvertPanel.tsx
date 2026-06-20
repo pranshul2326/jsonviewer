@@ -207,8 +207,31 @@ export default function ConvertPanel({ convert }: ConvertPanelProps) {
   const sourceLabel = direction === 'fromJson' ? 'JSON' : targetLabel;
   const outputLabel = direction === 'fromJson' ? targetLabel : 'JSON';
 
-  const onCopy = async () => {
-    if (output === '') return;
+  // Hidden file input used by the "Upload" control on the source pane.
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Accepted file extensions for the source upload, by current direction/format.
+  const ACCEPT_BY_FORMAT: Record<ConvertFormat, string> = {
+    yaml: '.yaml,.yml',
+    xml: '.xml',
+    csv: '.csv',
+    toml: '.toml',
+  };
+  const uploadAccept =
+    direction === 'fromJson' ? '.json,application/json' : ACCEPT_BY_FORMAT[format];
+
+  /** Read a chosen local file as text into the active source (client-side only). */
+  const onUploadFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === 'string' ? reader.result : '';
+      if (direction === 'fromJson') setDocumentText(text);
+      else setFormatSource(text);
+    };
+    reader.readAsText(file);
+  };
+
+  const onCopy = async () => {    if (output === '') return;
     try {
       await navigator.clipboard.writeText(output);
       setCopied(true);
@@ -219,8 +242,8 @@ export default function ConvertPanel({ convert }: ConvertPanelProps) {
   };
 
   return (
-    <section aria-label="Converter panel" data-tool-panel="converter" class="flex flex-col gap-md">
-      {/* ── Controls ─────────────────────────────────────────────────── */}
+    <section aria-label="Converter panel" data-tool-panel="converter" class="flex h-full min-h-0 flex-col gap-md">
+      {/* ── Controls: format buttons (left), direction (right) ───────────── */}
       <div class="flex flex-wrap items-center gap-md">
         <div role="group" aria-label="Target format" class="flex items-center gap-xxs">
           {FORMATS.map((f) => {
@@ -244,62 +267,73 @@ export default function ConvertPanel({ convert }: ConvertPanelProps) {
           })}
         </div>
 
-        <div role="group" aria-label="Direction" class="flex items-center gap-xxs">
-          <button
-            type="button"
-            aria-pressed={direction === 'fromJson'}
-            class={
-              'rounded-xs px-sm py-xxs text-button-md ring-1 ring-inset ' +
-              (direction === 'fromJson'
-                ? 'bg-primary text-on-primary ring-primary'
-                : 'text-body ring-hairline hover:bg-canvas-soft')
-            }
-            onClick={() => setDirection('fromJson')}
-          >
-            {`JSON → ${targetLabel}`}
-          </button>
-          <button
-            type="button"
-            aria-pressed={direction === 'toJson'}
-            class={
-              'rounded-xs px-sm py-xxs text-button-md ring-1 ring-inset ' +
-              (direction === 'toJson'
-                ? 'bg-primary text-on-primary ring-primary'
-                : 'text-body ring-hairline hover:bg-canvas-soft')
-            }
-            onClick={() => setDirection('toJson')}
-          >
-            {`${targetLabel} → JSON`}
-          </button>
-        </div>
-
-        <span class="ml-auto text-caption text-mute" aria-live="polite">
+        <span class="text-caption text-mute" aria-live="polite">
           {status === 'converting' ? 'Converting…' : ''}
         </span>
+
+        <button
+          type="button"
+          data-action="swap-direction"
+          aria-label="Swap conversion direction"
+          title="Swap conversion direction"
+          class="ml-auto inline-flex items-center gap-xs rounded-xs px-sm py-xxs text-button-md text-body ring-1 ring-inset ring-hairline hover:bg-canvas-soft"
+          onClick={() =>
+            setDirection((d) => (d === 'fromJson' ? 'toJson' : 'fromJson'))
+          }
+        >
+          <span>{direction === 'fromJson' ? `JSON → ${targetLabel}` : `${targetLabel} → JSON`}</span>
+          <span aria-hidden="true" class="text-mute">⇄</span>
+        </button>
       </div>
 
-      {/* ── Source / output ──────────────────────────────────────────── */}
-      <div class="grid grid-cols-1 gap-md md:grid-cols-2">
+      {/* ── Source / output (fills remaining height) ─────────────────────── */}
+      <div class="flex min-h-0 flex-1 flex-col gap-md md:flex-row">
         {/* Source */}
-        <div class="flex min-h-0 flex-col gap-xs">
-          <label class="text-body-sm-strong text-ink" for="convert-source">
-            {`Source · ${sourceLabel}`}
-          </label>
+        <div class="flex min-h-0 flex-1 flex-col gap-xs">
+          <div class="flex min-h-8 items-center gap-xs">
+            <label class="text-body-sm-strong text-ink" for="convert-source">
+              {`Source · ${sourceLabel}`}
+            </label>
+            <button
+              type="button"
+              data-action="upload-source"
+              class="ml-auto rounded-xs px-xs py-xxs text-button-md text-body ring-1 ring-inset ring-hairline hover:bg-canvas-soft"
+              title={`Upload a ${sourceLabel} file`}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              Upload
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={uploadAccept}
+              class="hidden"
+              aria-hidden="true"
+              onChange={(e) => {
+                const input = e.currentTarget as HTMLInputElement;
+                const file = input.files?.[0];
+                if (file) onUploadFile(file);
+                // Reset so selecting the same file again re-triggers onChange.
+                input.value = '';
+              }}
+            />
+          </div>
           {direction === 'fromJson' ? (
-            // The JSON source is the shared document, shown read-only.
+            // The JSON source is the shared document; editing here updates it so
+            // you can paste JSON directly in the Converter.
             <textarea
               id="convert-source"
-              readOnly
               aria-label={`Source ${sourceLabel} (shared document)`}
-              class="min-h-[280px] w-full resize-y rounded-sm border border-divider bg-canvas-soft p-sm font-mono text-code text-body"
+              class="min-h-0 w-full flex-1 resize-none rounded-sm border border-hairline bg-canvas p-sm font-mono text-code text-ink"
               value={doc.text}
-              placeholder="The shared JSON document is empty."
+              onInput={(e) => setDocumentText((e.target as HTMLTextAreaElement).value)}
+              placeholder="Paste JSON to convert…"
             />
           ) : (
             <textarea
               id="convert-source"
               aria-label={`Source ${sourceLabel}`}
-              class="min-h-[280px] w-full resize-y rounded-sm border border-hairline bg-canvas p-sm font-mono text-code text-ink"
+              class="min-h-0 w-full flex-1 resize-none rounded-sm border border-hairline bg-canvas p-sm font-mono text-code text-ink"
               value={formatSource}
               onInput={(e) => setFormatSource((e.target as HTMLTextAreaElement).value)}
               placeholder={`Paste ${sourceLabel} to convert to JSON…`}
@@ -308,8 +342,8 @@ export default function ConvertPanel({ convert }: ConvertPanelProps) {
         </div>
 
         {/* Output */}
-        <div class="flex min-h-0 flex-col gap-xs">
-          <div class="flex items-center gap-xs">
+        <div class="flex min-h-0 flex-1 flex-col gap-xs">
+          <div class="flex min-h-8 items-center gap-xs">
             <label class="text-body-sm-strong text-ink" for="convert-output">
               {`Output · ${outputLabel}`}
             </label>
@@ -338,7 +372,7 @@ export default function ConvertPanel({ convert }: ConvertPanelProps) {
           {status === 'error' && error ? (
             <div
               role="alert"
-              class="min-h-[280px] w-full overflow-auto rounded-sm border border-error bg-error-soft p-sm"
+              class="min-h-0 w-full flex-1 overflow-auto rounded-sm border border-error bg-error-soft p-sm"
             >
               <p class="text-body-sm-strong text-error-deep">Conversion failed</p>
               <p class="mt-xs text-body-sm text-error-deep">{error.message}</p>
@@ -356,7 +390,7 @@ export default function ConvertPanel({ convert }: ConvertPanelProps) {
               id="convert-output"
               readOnly
               aria-label={`Output ${outputLabel}`}
-              class="min-h-[280px] w-full resize-y rounded-sm border border-divider bg-canvas-soft p-sm font-mono text-code text-body"
+              class="min-h-0 w-full flex-1 resize-none rounded-sm border border-divider bg-canvas-soft p-sm font-mono text-code text-body"
               value={output}
               placeholder={
                 sourceText.trim() === ''
