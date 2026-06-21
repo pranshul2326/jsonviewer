@@ -60,6 +60,63 @@ export function setDocumentText(text: string): void {
   $document.set({ text, parsed: parseJson(text) });
 }
 
+// ---------------------------------------------------------------------------
+// Shared-document persistence (MPA navigation)
+// ---------------------------------------------------------------------------
+//
+// The site is a multi-page application: each tool (Viewer, Diff, Grid,
+// Converter) lives at its own URL, so switching tools is a real page
+// navigation. To keep the document the user is working on as they move between
+// tool pages, the shared editor text is mirrored into `sessionStorage`.
+//
+// `sessionStorage` (not `localStorage`) is deliberate: the document is scoped
+// to the current browser tab and is cleared when the tab closes, which is the
+// more privacy-preserving choice for potentially sensitive payloads. Access is
+// guarded for SSR, wrapped so a blocked/full store never breaks the app, and
+// size-limited to stay clear of the storage quota. The data never leaves the
+// browser, so the no-network privacy guarantee (Req 18) is preserved.
+
+const DOCUMENT_KEY = 'jvf:document';
+const DOCUMENT_PERSIST_MAX = 2_000_000; // ~2 MB; skip persisting beyond this
+
+/**
+ * Restore the shared document from sessionStorage (client-only).
+ *
+ * This is intentionally NOT run at module-import time: doing so would populate
+ * the store before the island hydrates, while the server-rendered HTML was
+ * built with an empty document — a hydration mismatch that left the virtualized
+ * tree mounted against stale DOM and measuring a zero-height viewport (the tree
+ * stayed blank until a remount). Instead AppShell calls this from a mount
+ * effect, so the document is restored *after* hydration and the tree mounts
+ * cleanly with a settled layout.
+ */
+export function restoreDocumentFromSession(): void {
+  if (typeof sessionStorage === 'undefined') return;
+  try {
+    const saved = sessionStorage.getItem(DOCUMENT_KEY);
+    if (saved && saved !== $document.get().text) setDocumentText(saved);
+  } catch {
+    /* ignore corrupt or blocked storage */
+  }
+}
+
+$document.listen((value) => {
+  if (typeof sessionStorage === 'undefined') return;
+  try {
+    if (value.text.length === 0) {
+      sessionStorage.removeItem(DOCUMENT_KEY);
+      return;
+    }
+    if (value.text.length > DOCUMENT_PERSIST_MAX) {
+      sessionStorage.removeItem(DOCUMENT_KEY);
+      return;
+    }
+    sessionStorage.setItem(DOCUMENT_KEY, value.text);
+  } catch {
+    /* ignore quota errors or blocked storage */
+  }
+});
+
 /**
  * Publish a document whose text was already parsed elsewhere (e.g. in a Web
  * Worker for a Large_Document, Req 17.1/17.4). The text is stored verbatim and

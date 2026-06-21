@@ -1,0 +1,112 @@
+---
+// SiteFooter.astro — shared, server-rendered footer with navigation to the
+// site's standalone pages (About, Privacy Policy, Terms & Conditions, Contact).
+//
+// This footer is rendered on every page (home + content pages). Because the
+// site is a multi-page application (each Astro page exports to its own HTML
+// file), these are real crawlable links that search engines follow, which is
+// good for SEO and required for a complete site (privacy policy / terms).
+//
+// Fully token-driven (Req 22.1) and contains no third-party markup or scripts
+// (Req 22.2 / Req 18), consistent with the rest of the app.
+
+const year = new Date().getFullYear();
+
+import { TOOL_ROUTES } from '../lib/routing/tools';
+
+const links: { href: string; label: string }[] = [
+  { href: '/', label: 'Home' },
+  { href: '/about', label: 'About Us' },
+  { href: '/privacy-policy', label: 'Privacy Policy' },
+  { href: '/terms', label: 'Terms & Conditions' },
+  { href: '/contact', label: 'Contact Us' },
+];
+---
+
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    <nav class="site-footer-nav" aria-label="Tools">
+      <ul>
+        {
+          TOOL_ROUTES.map((route) => (
+            <li>
+              <a href={route.path}>{route.label}</a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+    <nav class="site-footer-nav" aria-label="Footer">
+      <ul>
+        {
+          links.map((link) => (
+            <li>
+              <a href={link.href}>{link.label}</a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+    <p class="site-footer-meta">
+      &copy; {year} JSONLab — Free, privacy-first online JSON tools. Your data
+      never leaves your browser.
+    </p>
+  </div>
+</footer>
+
+<style>
+  .site-footer {
+    position: relative;
+    z-index: 10;
+    border-top: 1px solid var(--color-divider);
+    background-color: var(--color-canvas);
+    padding: 2rem 1rem;
+  }
+
+  .site-footer-inner {
+    max-width: 72ch;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    align-items: center;
+    text-align: center;
+  }
+
+  .site-footer-nav ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem 1.5rem;
+  }
+
+  .site-footer-nav a {
+    font-family: var(--font-sans);
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--color-ink);
+    text-decoration: none;
+  }
+
+  .site-footer-nav a:hover {
+    color: var(--color-link);
+    text-decoration: underline;
+  }
+
+  .site-footer-nav a:focus-visible {
+    outline: 2px solid var(--color-link, currentColor);
+    outline-offset: 2px;
+    border-radius: 0.25rem;
+  }
+
+  .site-footer-meta {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--color-mute, var(--color-body));
+  }
+</style>

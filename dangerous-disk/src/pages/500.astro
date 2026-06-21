@@ -1,0 +1,18 @@
+---
+import ErrorPage from '../layouts/ErrorPage.astro';
+
+const title = '500 — Server Error | JSONLab';
+const description = 'Something went wrong on our end.';
+---
+
+<ErrorPage title={title} description={description} code="500" heading="Something went wrong">
+  <p>
+    An unexpected error occurred while loading this page. This is on our end,
+    not yours. Please try again in a moment.
+  </p>
+  <p>
+    Your JSON is processed entirely in your browser, so nothing you were working
+    on has been sent anywhere. If the problem keeps happening, let us know on
+    the <a href="/contact">Contact</a> page.
+  </p>
+</ErrorPage>

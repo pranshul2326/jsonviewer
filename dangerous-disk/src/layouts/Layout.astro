@@ -16,8 +16,9 @@
 //     token so all chrome is token-driven (Req 22.1).
 //
 // Ad-free by construction (Req 22.2): this shell contains no third-party ad
-// markup, ad iframes, or ad-network scripts, and intentionally loads no
-// third-party analytics or tag-manager scripts.
+// markup, ad iframes, or ad-network scripts. It loads Google Analytics
+// (gtag.js) for usage measurement; the CSP below is scoped to allow only
+// Google's tag/analytics endpoints for that purpose.
 
 import '../styles/theme.css';
 
@@ -33,21 +34,69 @@ interface Props {
   title?: string;
   /** Meta description for SEO. */
   description?: string;
+  /** Comma-separated SEO keywords for this page. */
+  keywords?: string;
+  /** Open Graph / Twitter share image (absolute or root-relative path). */
+  ogImage?: string;
+  /** Robots directive. Override to "noindex, follow" for error/utility pages. */
+  robots?: string;
 }
 
 const {
-  title = 'Json Viewer Free — Privacy-first JSON viewer, formatter, diff & converter',
-  description = 'A fast, ad-free, 100% client-side JSON workbench: viewer, formatter/minifier, validator, semantic diff & merge, table grid, and converters. Your data never leaves your browser.',
+  title = 'JSONLab — Free Online JSON Viewer, Formatter, Validator & Converter',
+  description = 'JSONLab is a free, privacy-first online JSON viewer, formatter, beautifier, validator, diff checker and converter. Format, validate, edit, compare and convert JSON to CSV, YAML, XML, Java, Go and more — 100% in your browser.',
+  keywords = 'JSONLab, json formatter, json viewer, json validator, json beautifier, json editor, json parser, json diff, json compare, json converter, json to csv, json to yaml, what is a json file, json syntax square brackets',
+  ogImage = '/web-app-manifest-512x512.png',
+  robots = 'index, follow, max-image-preview:large, max-snippet:-1',
 } = Astro.props;
+
+// Build absolute URLs from the configured `site` origin so canonical, Open
+// Graph and Twitter tags point at the production domain even though the app is
+// a statically exported single page.
+const siteOrigin = Astro.site?.origin ?? 'https://jsonviewformat.com';
+const canonicalUrl = new URL(Astro.url.pathname, siteOrigin).href;
+const ogImageUrl = new URL(ogImage, siteOrigin).href;
+const siteName = 'JSONLab';
+
+// Structured data (schema.org) describing the tool as a free WebApplication.
+// Helps search engines and AI answer engines understand what JSONLab is and
+// surface it for "json formatter / viewer / validator" style queries.
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'WebApplication',
+  name: 'JSONLab',
+  url: siteOrigin + '/',
+  description,
+  applicationCategory: 'DeveloperApplication',
+  operatingSystem: 'Any (web-based, runs in the browser)',
+  browserRequirements: 'Requires a modern web browser with JavaScript enabled.',
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'USD',
+  },
+  featureList: [
+    'JSON viewer with collapsible tree view',
+    'JSON formatter, beautifier and minifier',
+    'JSON validator and syntax linter with smart auto-fix',
+    'Semantic JSON diff, compare and three-way merge',
+    'JSON grid / table view',
+    'JSON to CSV, YAML, XML and TOML converter',
+    'JSON to TypeScript, Java, Go, Python and Dart code generator',
+    'JSONPath and JMESPath query engine',
+    '100% client-side and privacy-first — data never leaves your browser',
+  ],
+  isAccessibleForFree: true,
+};
 
 // Content-Security-Policy enforcing client-side privacy (Req 18).
 //
-// `connect-src 'self'` is the load-bearing directive: it blocks every
-// fetch/XHR/WebSocket/EventSource/sendBeacon to any origin other than the
-// site itself, so no tool can ever transmit user JSON to a third party — any
-// accidental outbound data call is stopped by the browser (Req 18.1, 18.2,
-// 18.5). Because all logic runs locally, the app keeps working with no network
-// at all (Req 18.4).
+// `connect-src` is the load-bearing directive for privacy: it blocks every
+// fetch/XHR/WebSocket/EventSource/sendBeacon except to the site itself and the
+// Google Analytics endpoints below, so no tool can transmit user JSON to any
+// other third party — any accidental outbound data call is stopped by the
+// browser (Req 18.1, 18.2, 18.5). Because all logic runs locally, the app
+// keeps working with no network at all (Req 18.4).
 //
 // The remaining directives are scoped as tightly as possible while keeping the
 // app fully functional:
@@ -75,12 +124,12 @@ const {
 //   • object-src 'none' / base-uri 'self' / form-action 'self' — hardening.
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' blob:",
+  "script-src 'self' 'unsafe-inline' blob: https://www.googletagmanager.com",
   "worker-src 'self' blob:",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self'",
-  "connect-src 'self'",
+  "connect-src 'self' https://www.googletagmanager.com https://www.google-analytics.com https://region1.google-analytics.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -93,11 +142,53 @@ const csp = [
     <meta charset="UTF-8" />
     <meta http-equiv="Content-Security-Policy" content={csp} />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" href="/favicon.ico" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="JSONLab" />
+    <link rel="manifest" href="/site.webmanifest" />
     <meta name="generator" content={Astro.generator} />
-    <meta name="description" content={description} />
+
+    {/* Primary SEO meta */}
     <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="keywords" content={keywords} />
+    <meta name="author" content="JSONLab" />
+    <meta name="robots" content={robots} />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="canonical" href={canonicalUrl} />
+
+    {/* Open Graph (Facebook, LinkedIn, Slack, etc.) */}
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={siteName} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:image:alt" content="JSONLab — free online JSON viewer, formatter and converter" />
+    <meta property="og:locale" content="en_US" />
+
+    {/* Twitter Card */}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageUrl} />
+    <meta name="twitter:image:alt" content="JSONLab — free online JSON viewer, formatter and converter" />
+
+    {/* Structured data (schema.org) for rich results and AI answer engines */}
+    <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
+
+    {/* Google Analytics (gtag.js) */}
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-RX81D90Z89"></script>
+    <script is:inline>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag('js', new Date());
+      gtag('config', 'G-RX81D90Z89');
+    </script>
 
     {/*
       No-FOUC theme bootstrap. Runs before first paint so the correct theme is

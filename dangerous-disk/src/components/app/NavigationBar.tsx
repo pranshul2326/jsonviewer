@@ -26,25 +26,9 @@
 import { useStore } from '@nanostores/preact';
 import { useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
-import { $activeTool, setActiveTool, type Tool } from '../../lib/stores/document';
+import { $activeTool } from '../../lib/stores/document';
+import { TOOL_ROUTES, routeForTool } from '../../lib/routing/tools';
 import ThemeToggle from './ThemeToggle';
-
-/** A single navigation entry: its Tool id and the visible text label (Req 21.1). */
-interface NavEntry {
-  tool: Tool;
-  label: string;
-}
-
-/**
- * The exactly-four navigation entries, in display order, mapping each visible
- * label to its {@link Tool} value (Req 21.1).
- */
-const NAV_ENTRIES: readonly NavEntry[] = [
-  { tool: 'viewer', label: 'Viewer' },
-  { tool: 'diff', label: 'Diff Checker' },
-  { tool: 'grid', label: 'Table Grid' },
-  { tool: 'converter', label: 'Converter' },
-] as const;
 
 /** Shared `nav-link` ghost-pill base classes (token-driven, body-sm). */
 const NAV_LINK_BASE =
@@ -79,9 +63,9 @@ export interface NavigationBarProps {
 }
 
 /**
- * Render the top navigation bar. Reads the active tool from `$activeTool` so the
- * active-state indicator stays in sync with the rest of the app, and writes via
- * `setActiveTool` on selection.
+ * Render the top navigation bar. Each tool is a real link to its own page
+ * (multi-page application), and the active-state indicator is derived from the
+ * shared `$activeTool` store, which each tool page sets on load.
  */
 export function NavigationBar({ label = 'Primary', trailing }: NavigationBarProps) {
   const activeTool = useStore($activeTool);
@@ -89,39 +73,55 @@ export function NavigationBar({ label = 'Primary', trailing }: NavigationBarProp
   // row never consults this — it is always visible at ≥960px.
   const [menuOpen, setMenuOpen] = useState(false);
 
-  /** Select a tool, update shared state, and close the mobile menu. */
-  const select = (tool: Tool) => {
-    setActiveTool(tool);
-    setMenuOpen(false);
-  };
+  // The brand line reflects the tool the current page represents, e.g.
+  // "JSONLab — JSON Viewer, Formatter & Validator".
+  const brand = routeForTool(activeTool).navBrand;
 
   return (
     <nav
       aria-label={label}
       class="relative flex h-16 items-center justify-between gap-3 border-b border-hairline bg-canvas px-6 py-3 text-ink"
     >
-      {/* Brand wordmark (decorative; not one of the four tool entries). */}
-      <span class="font-sans text-body-sm-strong text-ink select-none">JSON Viewer Free</span>
+      {/* Brand: favicon + product name + the active tool's descriptive suffix.
+          Links home. The descriptive suffix is hidden on very small screens so
+          the bar stays uncluttered. */}
+      <a
+        href="/"
+        class="flex min-w-0 items-center gap-2 no-underline"
+        aria-label={`JSONLab — ${brand}`}
+      >
+        <img
+          src="/favicon.svg"
+          alt=""
+          width="24"
+          height="24"
+          class="h-6 w-6 shrink-0"
+          aria-hidden="true"
+        />
+        <span class="min-w-0 truncate font-sans text-body-sm text-ink">
+          <span class="font-semibold">JSONLab</span>
+          <span class="hidden text-body sm:inline"> — {brand}</span>
+        </span>
+      </a>
 
       {/* Right cluster: tool entries (desktop), trailing slot (Share), and the
           mobile toggle — all on the single nav row to save vertical space. */}
       <div class="flex items-center gap-2">
         {/* ── Full horizontal layout (≥960px): all four entries, no toggle (Req 22.5) ── */}
         <ul class="hidden min-[960px]:flex items-center gap-1" role="list">
-          {NAV_ENTRIES.map((entry) => {
+          {TOOL_ROUTES.map((entry) => {
             const isActive = entry.tool === activeTool;
             return (
               <li key={entry.tool}>
-                <button
-                  type="button"
+                <a
+                  href={entry.path}
                   class={navLinkClass(isActive)}
                   aria-current={isActive ? 'page' : undefined}
                   data-active={isActive ? 'true' : 'false'}
                   data-tool={entry.tool}
-                  onClick={() => select(entry.tool)}
                 >
                   {entry.label}
-                </button>
+                </a>
               </li>
             );
           })}
@@ -178,21 +178,21 @@ export function NavigationBar({ label = 'Primary', trailing }: NavigationBarProp
           role="menu"
           class="min-[960px]:hidden absolute left-0 right-0 top-16 z-10 flex flex-col gap-1 border-b border-hairline bg-canvas p-3 shadow-level-5"
         >
-          {NAV_ENTRIES.map((entry) => {
+          {TOOL_ROUTES.map((entry) => {
             const isActive = entry.tool === activeTool;
             return (
               <li key={entry.tool} role="none">
-                <button
-                  type="button"
+                <a
+                  href={entry.path}
                   role="menuitem"
                   class={`w-full justify-start ${navLinkClass(isActive)}`}
                   aria-current={isActive ? 'page' : undefined}
                   data-active={isActive ? 'true' : 'false'}
                   data-tool={entry.tool}
-                  onClick={() => select(entry.tool)}
+                  onClick={() => setMenuOpen(false)}
                 >
                   {entry.label}
-                </button>
+                </a>
               </li>
             );
           })}

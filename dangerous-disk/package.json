@@ -10,6 +10,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
+    "deploy": "astro build && wrangler deploy",
     "test": "vitest --passWithNoTests",
     "test:run": "vitest run --passWithNoTests"
   },
@@ -46,6 +47,7 @@
     "@types/papaparse": "^5.3.15",
     "fast-check": "^3.23.0",
     "jsdom": "^26.0.0",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.0",
+    "wrangler": "^4.103.0"
   }
 }

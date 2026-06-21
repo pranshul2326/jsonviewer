@@ -44,6 +44,36 @@ import {
 } from '../../lib/monaco-theme';
 import type * as Monaco from 'monaco-editor';
 
+// Monaco's codicon icon styles (the @font-face + `.codicon` classes that render
+// the gutter fold chevrons). These are imported *statically* as CSS so the
+// bundler folds them into the eager island stylesheet that always loads.
+//
+// Previously these were pulled in via a dynamic `import('…/codiconStyles.js')`
+// inside the editor-setup effect. That routed the CSS through Vite's
+// `__vitePreload` helper, which injects a <link> to a per-chunk CSS file and
+// *rejects* if it fails to load. In the production build that CSS chunk was
+// never emitted (Vite emitted the .ttf font but dropped the near-empty CSS
+// chunk), so the preload 404'd, the rejection propagated up the editor's
+// `await import(...)` chain, and Monaco never mounted — leaving the
+// Format/Minify/tree buttons permanently disabled. Importing the CSS statically
+// removes the dynamic preload entirely and guarantees the styles ship.
+import 'monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon.css';
+import 'monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon-modifiers.css';
+
+// Monaco's CORE editor layout CSS (the `.monaco-editor`, `.view-lines`,
+// `.view-line` rules that absolutely-position each rendered line). Monaco sets
+// per-line inline `top`/`height` offsets but relies on this stylesheet for the
+// containing layout, overflow, and line-box geometry. The ESM build scatters
+// these rules across many co-located `.css` imports inside `editor.api`; in the
+// production build Vite split them into a dynamic CSS chunk that was dropped
+// (same failure mode as the codicon CSS above), so the deployed editor rendered
+// lines overlapping/incomplete while `astro dev` — which injects the CSS as
+// live <style> tags — looked fine. `min/vs/editor/editor.main.css` is Monaco's
+// single concatenated stylesheet containing every editor rule; importing it
+// statically folds the layout CSS into the eager island stylesheet so it always
+// ships.
+import 'monaco-editor/min/vs/editor/editor.main.css';
+
 /** Debounce window before validation runs after the last keystroke (Req 6.1). */
 const VALIDATION_DEBOUNCE_MS = 300;
 
@@ -245,11 +275,9 @@ export function EditorPane({ onEditorReady, parseLarge }: EditorPaneProps) {
       // so the gutter collapse/expand chevrons work (user-requested folding).
       await import('monaco-editor/esm/vs/editor/contrib/folding/browser/folding.js');
       // The fold chevrons (and every Monaco UI icon) are glyphs in the codicon
-      // icon font. The lean entry does not inject the codicon @font-face, so the
-      // icons render as missing-glyph boxes. Importing `codiconStyles` injects
-      // the font-face + icon classes (the .ttf is emitted same-origin, allowed
-      // by the `font-src 'self'` CSP).
-      await import('monaco-editor/esm/vs/base/browser/ui/codicons/codiconStyles.js');
+      // icon font. The codicon @font-face + icon classes are imported
+      // statically at the top of this module (see the import above), so they
+      // are part of the eager island stylesheet and need no dynamic preload.
       if (disposed) return;
       monaco = editorApi as unknown as typeof Monaco;
 

@@ -1,0 +1,221 @@
+---
+// ContentPage.astro — shared layout for the site's standalone content pages
+// (About, Privacy Policy, Terms & Conditions, Contact).
+//
+// Wraps the base Layout (which provides <head>, SEO meta, fonts, CSP and the
+// theme bootstrap) and adds the chrome these pages share:
+//   • a slim top bar with the JSONLab brand linking back to the app/home,
+//   • a readable, token-driven prose container for the page body (<slot/>),
+//   • the shared SiteFooter with links to every page.
+//
+// Each page in src/pages/ builds to its own static HTML file, so the site is a
+// true multi-page application — ideal for SEO and required for crawlable
+// legal/info pages.
+
+import Layout from './Layout.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import { TOOL_ROUTES } from '../lib/routing/tools';
+
+interface Props {
+  title: string;
+  description: string;
+  /** Visible <h1> heading for the page. */
+  heading: string;
+  keywords?: string;
+}
+
+const { title, description, heading, keywords } = Astro.props;
+---
+
+<Layout title={title} description={description} keywords={keywords}>
+  <div class="page-mesh" aria-hidden="true"></div>
+
+  <div class="relative z-10 flex min-h-screen flex-col">
+    <header class="content-topbar">
+      <a class="content-brand" href="/">
+        <img
+          src="/favicon.svg"
+          alt=""
+          width="24"
+          height="24"
+          class="content-brand-logo"
+          aria-hidden="true"
+        />
+        <span class="content-brand-name">JSONLab</span>
+      </a>
+      <nav class="content-topnav" aria-label="Primary">
+        <a href="/">Home</a>
+        {TOOL_ROUTES.map((route) => <a href={route.path}>{route.label}</a>)}
+      </nav>
+    </header>
+
+    <main class="content-main">
+      <article class="content-prose">
+        <h1>{heading}</h1>
+        <slot />
+      </article>
+    </main>
+
+    <SiteFooter />
+  </div>
+</Layout>
+
+<style>
+  .content-topbar {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--color-divider);
+    background-color: var(--color-canvas);
+  }
+
+  .content-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+  }
+
+  .content-brand-logo {
+    height: 1.5rem;
+    width: 1.5rem;
+    flex-shrink: 0;
+  }
+
+  .content-brand-name {
+    font-family: var(--font-sans);
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--color-ink);
+  }
+
+  .content-topnav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.25rem;
+  }
+
+  .content-topnav a {
+    font-family: var(--font-sans);
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--color-body, var(--color-ink));
+    text-decoration: none;
+  }
+
+  .content-topnav a:hover {
+    color: var(--color-link);
+    text-decoration: underline;
+  }
+
+  .content-main {
+    flex: 1 1 auto;
+    padding: 2.5rem 1rem 3.5rem;
+  }
+
+  .content-prose {
+    max-width: 72ch;
+    margin: 0 auto;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    line-height: 1.65;
+  }
+
+  .content-prose :global(h1) {
+    font-size: 1.875rem;
+    font-weight: 600;
+    line-height: 1.25;
+    margin: 0 0 0.5rem;
+  }
+
+  .content-prose :global(.updated) {
+    color: var(--color-mute, var(--color-body));
+    font-size: 0.9rem;
+    margin: 0 0 1.75rem;
+  }
+
+  .content-prose :global(h2) {
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin: 2rem 0 0.5rem;
+  }
+
+  .content-prose :global(h3) {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin: 1.5rem 0 0.4rem;
+  }
+
+  .content-prose :global(p),
+  .content-prose :global(li) {
+    margin: 0 0 1rem;
+    color: var(--color-body, var(--color-ink));
+  }
+
+  .content-prose :global(ul),
+  .content-prose :global(ol) {
+    margin: 0 0 1rem;
+    padding-left: 1.4rem;
+  }
+
+  .content-prose :global(li) {
+    margin: 0 0 0.4rem;
+  }
+
+  .content-prose :global(a) {
+    color: var(--color-link);
+    text-decoration: underline;
+  }
+
+  .content-prose :global(strong) {
+    color: var(--color-ink);
+  }
+
+  .content-prose :global(code) {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.9em;
+    padding: 0.05em 0.3em;
+    border-radius: 0.25rem;
+    background-color: var(--color-canvas-soft);
+  }
+
+  @media (min-width: 768px) {
+    .content-prose :global(h1) {
+      font-size: 2.125rem;
+    }
+  }
+
+  .page-mesh {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.12;
+    background:
+      radial-gradient(
+        40% 60% at 15% 20%,
+        var(--color-gradient-preview-start) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        45% 55% at 85% 15%,
+        var(--color-gradient-develop-start) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        50% 60% at 75% 90%,
+        var(--color-gradient-ship-start) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        45% 50% at 25% 95%,
+        var(--color-gradient-develop-end) 0%,
+        transparent 70%
+      );
+  }
+</style>

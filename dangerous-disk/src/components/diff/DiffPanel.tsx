@@ -54,6 +54,25 @@ import {
 } from '../../lib/monaco-theme';
 import type * as Monaco from 'monaco-editor';
 
+// Monaco's codicon icon styles, imported statically as CSS so the bundler folds
+// them into the eager island stylesheet. See EditorPane.tsx for the full
+// rationale: routing this through a dynamic `import('…/codiconStyles.js')` made
+// Vite emit a `__vitePreload` <link> to a CSS chunk that was never built in the
+// production bundle, so the preload 404'd and the rejection aborted the diff
+// editor's mount. A static CSS import removes that failure mode entirely.
+import 'monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon.css';
+import 'monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon-modifiers.css';
+
+// Monaco's CORE editor/diff layout CSS (`.monaco-editor`, `.view-lines`,
+// `.view-line`, and the diff overlays). Without it the diff editor renders its
+// lines overlapping/incomplete because Monaco only sets per-line inline offsets
+// and relies on this stylesheet for the layout. The ESM build scattered these
+// rules into a dynamic CSS chunk that the production build dropped (same mode
+// as the codicon CSS above), so the deployed diff looked broken while
+// `astro dev` was fine. `min/vs/editor/editor.main.css` is the single
+// concatenated stylesheet; importing it statically guarantees it ships.
+import 'monaco-editor/min/vs/editor/editor.main.css';
+
 /** Debounce window before re-evaluating the documents after the last edit. */
 const EVALUATION_DEBOUNCE_MS = 300;
 
@@ -91,7 +110,7 @@ export interface DiffPanelProps {
  */
 /** Shared base classes for the view-toggle segmented control buttons. */
 const TOGGLE_BASE =
-  'inline-flex items-center font-sans text-button-md rounded-md px-3 py-1.5 ' +
+  'inline-flex items-center whitespace-nowrap font-sans text-button-md rounded-md px-3 py-1.5 ' +
   'transition-colors cursor-pointer select-none ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-link/50';
 const TOGGLE_ACTIVE = 'bg-canvas text-ink shadow-level-1';
@@ -119,7 +138,16 @@ export function DiffPanel({
   onRightChangeRef.current = onRightChange;
 
   // ── UI state (drives the banners; the editor content lives in Monaco) ──────
-  const [viewMode, setViewMode] = useState<ViewMode>('side-by-side');
+  // Default to the unified single-pane layout on phone-width screens (where two
+  // side-by-side Monaco panes are cramped) and side-by-side elsewhere. This is
+  // only the initial default — the view toggle remains fully functional at every
+  // width, so the user can switch freely afterwards.
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+      return window.matchMedia('(max-width: 640px)').matches ? 'unified' : 'side-by-side';
+    }
+    return 'side-by-side';
+  });
   const [errors, setErrors] = useState<DiffDocError[]>([]);
   // Whether the two documents are structurally identical (Req 9.6). Retained
   // across parse failures (Req 9.7), so it is updated only when both are valid.
@@ -273,9 +301,9 @@ export function DiffPanel({
       // Register the folding contribution (omitted by the lean `editor.api`
       // entry) so gutter fold controls work in the diff editor too.
       await import('monaco-editor/esm/vs/editor/contrib/folding/browser/folding.js');
-      // Inject the codicon icon font so fold chevrons render as glyphs rather
-      // than missing-glyph boxes (the lean entry omits it).
-      await import('monaco-editor/esm/vs/base/browser/ui/codicons/codiconStyles.js');
+      // The codicon icon font (fold chevrons etc.) is imported statically as
+      // CSS at the top of this module, so it ships in the eager bundle and
+      // needs no dynamic preload here.
       if (disposed) return;
       monaco = editorApi as unknown as typeof Monaco;
 
@@ -295,6 +323,12 @@ export function DiffPanel({
         theme: diffThemeName(),
         // Side-by-side (Req 9.1) vs unified (Req 9.2) toggled live.
         renderSideBySide: viewModeRef.current === 'side-by-side',
+        // Honor the side-by-side choice at any width. Monaco otherwise auto-
+        // collapses to the inline layout below its ~900px breakpoint, which
+        // made the "Side by side" toggle appear to do nothing on phones. With
+        // this off, the two panes always render when side-by-side is selected
+        // (each pane scrolls horizontally on small screens).
+        useInlineViewWhenSpaceIsLimited: false,
         originalEditable: true, // Left pane is an editable document input.
         readOnly: false, // Right pane editable too.
         automaticLayout: true,
@@ -356,20 +390,36 @@ export function DiffPanel({
       unsubscribeTheme?.();
       diffClient?.dispose(true);
       diffClient = null;
+      // Dispose the diff editor BEFORE its text models. Disposing a model that
+      // is still attached to the diff widget makes Monaco throw "TextModel got
+      // disposed before DiffEditorWidget model got reset" during teardown
+      // (seen when rapidly switching tools). Detaching + disposing the editor
+      // first lets the widget release the models cleanly.
+      editorRef.current = null;
+      editor?.setModel(null);
+      editor?.dispose();
       originalModelRef.current?.dispose();
       modifiedModelRef.current?.dispose();
       originalModelRef.current = null;
       modifiedModelRef.current = null;
-      editorRef.current = null;
-      editor?.dispose();
     };
   }, []);
 
   // Apply the view-mode toggle to the live editor (Req 9.1/9.2).
   useEffect(() => {
-    editorRef.current?.updateOptions({
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.updateOptions({
       renderSideBySide: viewMode === 'side-by-side',
     });
+    // Monaco's diff editor does not reliably repaint the inline (unified)
+    // surface after a `renderSideBySide` toggle until its next layout pass —
+    // switching modes doesn't change the container size, so `automaticLayout`'s
+    // ResizeObserver never fires, leaving the unified view blank (no editor
+    // background) until an unrelated resize. Force a relayout on the next frame
+    // so the newly-selected view paints immediately.
+    const raf = requestAnimationFrame(() => editorRef.current?.layout());
+    return () => cancelAnimationFrame(raf);
   }, [viewMode]);
 
   // Format (beautify / indent) both documents in place using the shared
@@ -396,13 +446,13 @@ export function DiffPanel({
   return (
     <div class="flex h-full flex-col bg-canvas" data-component="diff-panel">
       {/* ── Toolbar: view toggle (Req 9.1 / 9.2) ───────────────────────────── */}
-      <div class="flex items-center justify-between gap-4 border-b border-hairline px-4 py-2">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-hairline px-3 py-2 sm:gap-4 sm:px-4">
         <span class="font-sans text-body-sm-strong text-ink">Diff Checker</span>
         <div class="flex items-center gap-2">
           {/* Format both documents (beautify / indent) with one click. */}
           <button
             type="button"
-            class="inline-flex items-center rounded-md px-3 py-1.5 font-sans text-button-md text-body ring-1 ring-inset ring-hairline transition-colors cursor-pointer hover:bg-canvas-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-link/50"
+            class="inline-flex items-center whitespace-nowrap rounded-md px-3 py-1.5 font-sans text-button-md text-body ring-1 ring-inset ring-hairline transition-colors cursor-pointer hover:bg-canvas-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-link/50"
             data-action="format-both"
             title="Format both documents (beautify / indent)"
             onClick={onFormat}

@@ -1,0 +1,112 @@
+---
+// ToolPage.astro — shared layout for the four dedicated tool pages.
+//
+// Each tool (Viewer, Diff, Grid, Converter) lives at its own URL so the site is
+// a true multi-page application (good for SEO and shareable, meaningful links).
+// This layout mounts the interactive `AppShell` island pre-set to the page's
+// tool, renders a short crawlable intro for that tool, and shows the shared
+// SiteFooter.
+//
+// All per-page SEO metadata comes from the single TOOL_ROUTES source of truth
+// in src/lib/routing/tools.ts.
+
+import Layout from './Layout.astro';
+import AppShell from '../components/app/AppShell.tsx';
+import SiteFooter from '../components/SiteFooter.astro';
+import { routeForTool } from '../lib/routing/tools';
+import type { Tool } from '../lib/stores/document';
+
+interface Props {
+  /** Which tool this page represents. */
+  tool: Tool;
+}
+
+const { tool } = Astro.props;
+const route = routeForTool(tool);
+---
+
+<Layout title={route.title} description={route.description} keywords={route.keywords}>
+  <div class="page-mesh" aria-hidden="true"></div>
+
+  <div class="relative z-10 flex min-h-screen flex-col">
+    <main class="flex w-full flex-col">
+      {/* The workbench, pre-set to this page's tool. Share is disabled in
+          production, matching the homepage. */}
+      <AppShell client:load enableShare={false} initialTool={tool} />
+    </main>
+
+    {/* Crawlable, server-rendered intro so each tool page has real, unique
+        on-page content for search engines. */}
+    <section class="tool-intro" aria-label={route.heading}>
+      <article class="tool-prose">
+        <h1>{route.heading}</h1>
+        <p>{route.intro}</p>
+      </article>
+    </section>
+
+    <SiteFooter />
+  </div>
+</Layout>
+
+<style>
+  .tool-intro {
+    position: relative;
+    z-index: 10;
+    padding: 2rem 1rem 3rem;
+  }
+
+  .tool-prose {
+    max-width: 72ch;
+    margin: 0 auto;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    line-height: 1.65;
+  }
+
+  .tool-prose h1 {
+    font-size: 1.6rem;
+    font-weight: 600;
+    line-height: 1.25;
+    margin: 0 0 0.75rem;
+  }
+
+  .tool-prose p {
+    margin: 0;
+    color: var(--color-ink-soft, var(--color-body, var(--color-ink)));
+  }
+
+  @media (min-width: 768px) {
+    .tool-prose h1 {
+      font-size: 1.875rem;
+    }
+  }
+
+  .page-mesh {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.12;
+    background:
+      radial-gradient(
+        40% 60% at 15% 20%,
+        var(--color-gradient-preview-start) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        45% 55% at 85% 15%,
+        var(--color-gradient-develop-start) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        50% 60% at 75% 90%,
+        var(--color-gradient-ship-start) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        45% 50% at 25% 95%,
+        var(--color-gradient-develop-end) 0%,
+        transparent 70%
+      );
+  }
+</style>

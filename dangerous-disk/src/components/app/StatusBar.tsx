@@ -241,7 +241,7 @@ export function StatusBar({ progress, progressLabel }: StatusBarProps) {
 
   return (
     <div
-      class="flex h-8 items-center justify-between gap-4 border-t border-hairline bg-canvas px-4 text-body"
+      class="flex h-8 items-center justify-between gap-2 border-t border-hairline bg-canvas px-2 text-body sm:gap-4 sm:px-4"
       data-component="status-bar"
     >
       {/* Left: validity indicator (Req 6.2, 6.3). */}
@@ -250,7 +250,7 @@ export function StatusBar({ progress, progressLabel }: StatusBarProps) {
       </div>
 
       {/* Right: worker progress / failure reason (Req 17.3, 17.5) + size. */}
-      <div class="flex shrink-0 items-center gap-4">
+      <div class="flex min-w-0 shrink-0 items-center gap-2 sm:gap-4">
         {propProgress && (
           <ProgressIndicator fraction={progress as number} label={progressLabel} />
         )}
@@ -267,7 +267,7 @@ export function StatusBar({ progress, progressLabel }: StatusBarProps) {
           />
         )}
         <span
-          class="font-mono text-caption-mono text-mute tabular-nums"
+          class="truncate font-mono text-caption-mono text-mute tabular-nums"
           data-size="true"
           title={`${formatCount(chars)} characters · ${formatCount(bytes)} bytes`}
         >

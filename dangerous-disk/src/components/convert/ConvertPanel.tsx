@@ -276,7 +276,7 @@ export default function ConvertPanel({ convert }: ConvertPanelProps) {
           data-action="swap-direction"
           aria-label="Swap conversion direction"
           title="Swap conversion direction"
-          class="ml-auto inline-flex items-center gap-xs rounded-xs px-sm py-xxs text-button-md text-body ring-1 ring-inset ring-hairline hover:bg-canvas-soft"
+          class="inline-flex w-full items-center justify-center gap-xs rounded-xs px-sm py-xxs text-button-md text-body ring-1 ring-inset ring-hairline hover:bg-canvas-soft sm:ml-auto sm:w-auto sm:justify-start"
           onClick={() =>
             setDirection((d) => (d === 'fromJson' ? 'toJson' : 'fromJson'))
           }

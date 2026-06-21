@@ -23,6 +23,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fc, test } from '@fast-check/vitest';
 import { render } from 'preact';
 import { $activeTool, setActiveTool, type Tool } from '../../lib/stores/document';
+import { routePath } from '../../lib/routing/tools';
 import { NavigationBar } from './NavigationBar';
 
 const TOOLS: readonly Tool[] = ['viewer', 'diff', 'grid', 'converter'] as const;
@@ -75,38 +76,31 @@ function activeEntries(scope: Element): Element[] {
   return Array.from(scope.querySelectorAll('[data-active="true"]'));
 }
 
-/** Dispatch a real click on the desktop entry for `tool`. */
-function clickDesktop(tool: Tool): void {
-  const btn = desktopRow().querySelector<HTMLButtonElement>(`[data-tool="${tool}"]`);
-  if (!btn) throw new Error(`expected a desktop entry for tool "${tool}"`);
-  btn.click();
-}
-
 describe('NavigationBar — Property 33: Navigation has a single active tool', () => {
   // Feature: json-viewer-free, Property 33: Navigation has a single active tool
   // Validates: Requirements 21.3, 21.4
   //
-  // For any non-empty sequence of tool selections, after applying them in order:
+  // The site is now a multi-page application: each tool entry is a real link to
+  // its own page, and the active tool is set on the shared store by the tool
+  // page on load. For any non-empty sequence of activations, after applying them
+  // in order:
   //   • exactly one entry carries the active-state indicator (Req 21.4), and
-  //   • that entry is the last-selected tool, matching `$activeTool` (Req 21.3),
+  //   • that entry is the last-activated tool, matching `$activeTool` (Req 21.3),
   //   • with every other entry explicitly inactive.
   test.prop([fc.array(fc.constantFrom(...TOOLS), { minLength: 1, maxLength: 20 })], {
     numRuns: 100,
-  })('any sequence of selections leaves exactly one active entry matching $activeTool', async (sequence) => {
+  })('any sequence of activations leaves exactly one active entry matching $activeTool', async (sequence) => {
     setActiveTool('viewer');
     mount();
-    // Let the store subscription (established in an effect) settle before any
-    // clicks, so selections are observed.
     await flush();
 
-    // Apply the sequence as real clicks through the selection wiring (Req 21.3):
-    // each click sets the active tool on the shared store.
+    // Apply the sequence by activating tools on the shared store, the way each
+    // tool page does on load (Req 21.3).
     for (const tool of sequence) {
-      clickDesktop(tool);
+      setActiveTool(tool);
     }
 
     const expected = sequence[sequence.length - 1];
-    // The selection wiring set the store to the last-selected tool.
     expect($activeTool.get()).toBe(expected);
 
     // Re-mount fresh so the render deterministically reflects the current store
@@ -133,6 +127,19 @@ describe('NavigationBar — Property 33: Navigation has a single active tool', (
     }
 
     // Cleanly unmount between runs so subscriptions do not accumulate.
+    render(null, container);
+  });
+
+  it('renders each entry as a link to that tool’s page (multi-page application)', () => {
+    mount();
+    for (const tool of TOOLS) {
+      const link = desktopRow().querySelector<HTMLAnchorElement>(
+        `[data-tool="${tool}"]`,
+      );
+      expect(link, `expected a link for tool "${tool}"`).not.toBeNull();
+      expect(link!.tagName).toBe('A');
+      expect(link!.getAttribute('href')).toBe(routePath(tool));
+    }
     render(null, container);
   });
 

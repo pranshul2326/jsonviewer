@@ -33,9 +33,11 @@ import {
   $document,
   setActiveTool,
   setDocumentText,
+  restoreDocumentFromSession,
   type Tool,
 } from '../../lib/stores/document';
 import { decodeShare, encodeShare } from '../../lib/json-core/share';
+import { routePath } from '../../lib/routing/tools';
 import {
   dispatchShortcut,
   requestCollapseAll,
@@ -334,24 +336,54 @@ export interface AppShellProps {
    * it is re-enabled (the share load/encode logic is left intact).
    */
   enableShare?: boolean;
+  /**
+   * The tool this page activates. Each tool now lives at its own URL (a true
+   * multi-page application), so the hosting Astro page passes the tool it
+   * represents. When provided, AppShell adopts it on mount and does NOT mirror
+   * the tool into the URL hash (no more `#tool=…`). When omitted, AppShell
+   * falls back to reading the tool from the URL hash (legacy / share links).
+   */
+  initialTool?: Tool;
+  /**
+   * Render the Viewer in its compact, bounded-height embed (used on the
+   * marketing homepage) so the server-rendered SEO copy and FAQ below the
+   * workbench remain visible. Dedicated tool pages leave this off for the
+   * full-height tool.
+   */
+  compact?: boolean;
 }
 
 export default function AppShell({
   writeClipboard = defaultWriteClipboard,
   enableShare = true,
+  initialTool,
+  compact = false,
 }: AppShellProps = {}) {
+  // Adopt the page's tool synchronously (before reading it via `useStore`), so
+  // the very first render — including the server-rendered HTML and the first
+  // client paint — shows the correct tool and brand with no flash. The mount
+  // effect below still handles share-link decoding and legacy hash routing.
+  if (initialTool && $activeTool.get() !== initialTool) {
+    setActiveTool(initialTool);
+  }
   const activeTool = useStore($activeTool);
   const [helpOpen, setHelpOpen] = useState(false);
   // Share manager feedback (Req 20.1–20.4, 20.7). `null` = nothing to show.
   const [shareFeedback, setShareFeedback] = useState<ShareFeedback>(null);
 
-  // On mount: adopt any tool encoded in the URL hash, decode a share payload if
-  // one is present, then keep the store in sync with subsequent hash changes
-  // (back/forward, manual edits).
+  // On mount: adopt the page's tool (MPA) — or, when no `initialTool` is given,
+  // any tool encoded in the URL hash (legacy / share links). Then decode a
+  // share payload if one is present, and keep the store in sync with subsequent
+  // hash changes only in the legacy (hash-routed) mode.
   useEffect(() => {
-    const fromHash = readToolFromHash();
-    if (fromHash && fromHash !== $activeTool.get()) {
-      setActiveTool(fromHash);
+    if (initialTool) {
+      // Page-driven routing: this page represents exactly one tool.
+      if (initialTool !== $activeTool.get()) setActiveTool(initialTool);
+    } else {
+      const fromHash = readToolFromHash();
+      if (fromHash && fromHash !== $activeTool.get()) {
+        setActiveTool(fromHash);
+      }
     }
 
     // Share-link load (Req 20.5/20.7). Only attempt a decode when the hash
@@ -370,6 +402,13 @@ export default function AppShell({
         setDocumentText('');
         setShareFeedback({ kind: 'decode-failed' });
       }
+    } else {
+      // No share payload: restore any document persisted in this tab's session
+      // (MPA navigation). Done here, post-mount, rather than at module import so
+      // the server-rendered (empty) HTML and the first client render match —
+      // otherwise the virtualized tree mounts against mismatched DOM and renders
+      // blank until a remount.
+      restoreDocumentFromSession();
     }
 
     const onHashChange = () => {
@@ -379,6 +418,10 @@ export default function AppShell({
       }
     };
 
+    // Only mirror subsequent hash changes to the tool in legacy (hash-routed)
+    // mode. In MPA mode the tool is fixed by the page, so the hash never drives
+    // it.
+    if (initialTool) return;
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
@@ -402,11 +445,13 @@ export default function AppShell({
       .catch(() => setShareFeedback({ kind: 'copy-failed', link }));
   }, [writeClipboard]);
 
-  // Mirror the active tool into the URL hash whenever it changes (including the
-  // initial value), preserving other hash parameters.
+  // Mirror the active tool into the URL hash whenever it changes — only in
+  // legacy (hash-routed) mode. In MPA mode the tool lives in the path, so we
+  // never write `#tool=…` to the URL.
   useEffect(() => {
+    if (initialTool) return;
     writeToolToHash(activeTool);
-  }, [activeTool]);
+  }, [activeTool, initialTool]);
 
   // Global keyboard manager (Req 19.6): a single capture-phase listener on the
   // window responds to every defined shortcut regardless of which element holds
@@ -416,9 +461,15 @@ export default function AppShell({
     const ctx: ShortcutContext = {
       collapseAll: requestCollapseAll, // Req 19.4
       switchTool: (tool) => {
-        // Req 19.5 — activate the tool, then move a visible focus to its nav
-        // entry. Focus is applied after the store update so the (possibly
-        // re-rendered) entry exists in the DOM.
+        // Req 19.5 — each tool is its own page (MPA), so a tool-switch shortcut
+        // navigates to that tool's URL. In legacy (no `initialTool`) mode we
+        // fall back to an in-memory switch with a visible focus move.
+        if (initialTool) {
+          if (tool !== $activeTool.get()) {
+            window.location.assign(routePath(tool));
+          }
+          return;
+        }
         setActiveTool(tool);
         requestAnimationFrame(() => focusToolEntry(tool));
       },
@@ -439,15 +490,19 @@ export default function AppShell({
   }, []);
 
   const ActivePanel = PANELS[activeTool];
-  // The Viewer and Diff tools grow to their content (the page scrolls), so the
-  // editor/tree/semantic-list/patch are all reachable rather than crammed into
-  // one fixed card. The Grid and Converter keep a fixed, viewport-tall card so
-  // their internal virtualization has a bounded scroll area.
-  const fillTool = activeTool !== 'viewer' && activeTool !== 'diff';
+  // Render the active panel. The Viewer takes a `compact` flag so its embed on
+  // the marketing homepage reserves a bounded height (keeping the SEO/FAQ copy
+  // below it visible); every other panel is rendered with no props.
+  const activePanelElement =
+    activeTool === 'viewer' ? <ViewerPanel compact={compact} /> : <ActivePanel />;
+  // The Viewer and Diff tools grow to their content (the page scrolls); the
+  // Grid and Converter fill a fixed, viewport-tall card so their virtualization
+  // has a bounded scroll area.
+  const fillTool = activeTool === 'grid' || activeTool === 'converter';
 
   return (
     <section
-      aria-label="Json Viewer Free workbench"
+      aria-label="JSONLab workbench"
       class="flex min-h-0 flex-1 flex-col gap-sm"
     >
       <NavigationBar
@@ -465,11 +520,11 @@ export default function AppShell({
           (editor/tree/grid) is tall rather than leaving empty space below. */}
       <div
         data-active-tool={activeTool}
-        class={`mx-lg mb-md flex flex-col overflow-hidden rounded-md border border-hairline bg-canvas shadow-level-1 ${
+        class={`mx-sm sm:mx-lg mb-md flex flex-col overflow-hidden rounded-md border border-hairline bg-canvas shadow-level-1 ${
           fillTool ? 'h-[calc(100dvh-6rem)] min-h-0' : ''
         }`}
       >
-        <ActivePanel />
+        {activePanelElement}
       </div>
 
       {/* Keyboard-shortcuts reference overlay (Req 19.7). */}

@@ -353,13 +353,13 @@ export default function GridPanel({ gridResult }: GridPanelProps = {}) {
   return (
     <section aria-label="Table Grid panel" data-tool-panel="grid" class="flex min-h-0 flex-1 flex-col">
       {/* Global search (Req 15.2 / 15.3) */}
-      <div class="flex items-center gap-sm border-b border-hairline px-sm py-xs">
+      <div class="flex flex-wrap items-center gap-sm border-b border-hairline px-sm py-xs">
         <input
           type="search"
           value={search}
           placeholder="Search all columns…"
           aria-label="Search all columns"
-          class="min-w-0 flex-1 bg-transparent px-xs py-xxs text-body-sm text-body focus:outline-none"
+          class="min-w-0 flex-1 basis-full bg-transparent px-xs py-xxs text-body-sm text-body focus:outline-none sm:basis-auto"
           onInput={(e) => setSearch((e.currentTarget as HTMLInputElement).value)}
         />
         <span class="shrink-0 text-caption text-mute">

@@ -1,0 +1,60 @@
+---
+import ContentPage from '../layouts/ContentPage.astro';
+
+const title = 'About JSONLab — Free, Privacy-First Online JSON Tools';
+const description =
+  'Learn about JSONLab, a free and privacy-first online JSON viewer, formatter, validator, diff checker and converter that runs entirely in your browser.';
+const keywords =
+  'about jsonlab, json tools, privacy-first json viewer, free json formatter, online json tools';
+---
+
+<ContentPage title={title} description={description} heading="About JSONLab" keywords={keywords}>
+  <p>
+    <strong>JSONLab</strong> is a free, privacy-first online workbench for
+    working with JSON. It brings a complete set of tools together in one clean,
+    ad-free interface — a JSON viewer, formatter, validator, diff checker and
+    converter — so you can read, edit, debug and transform JSON without
+    installing anything.
+  </p>
+
+  <h2>Our mission</h2>
+  <p>
+    We built JSONLab because developers deserve fast, reliable JSON tools that
+    respect their data. Many online JSON utilities upload your payload to a
+    remote server, wrap the page in ads, or hide useful features behind a
+    sign-up. JSONLab takes the opposite approach: every feature runs locally in
+    your browser, the interface stays clean, and everything is free to use.
+  </p>
+
+  <h2>Privacy by design</h2>
+  <p>
+    JSONLab processes your data entirely on your device. Your JSON is never
+    uploaded to a server, which means sensitive API responses, configuration
+    files and logs never leave your machine. The app even keeps working with no
+    network connection at all. You can read more in our
+    <a href="/privacy-policy">Privacy Policy</a>.
+  </p>
+
+  <h2>What you can do with JSONLab</h2>
+  <ul>
+    <li><strong>View &amp; edit</strong> — explore JSON in a collapsible tree, add or rename keys, and copy the path to any value.</li>
+    <li><strong>Format &amp; minify</strong> — beautify JSON with 2-space, 4-space or tab indentation, or strip whitespace for compact output.</li>
+    <li><strong>Validate &amp; fix</strong> — catch syntax errors in real time and auto-repair common mistakes like trailing commas and single quotes.</li>
+    <li><strong>Diff &amp; merge</strong> — semantically compare two documents, merge changes and export RFC 6902 patches.</li>
+    <li><strong>Convert</strong> — turn JSON into CSV, YAML, XML, TOML, and typed code for TypeScript, Java, Go, Python and Dart.</li>
+    <li><strong>Query</strong> — filter and extract data with JSONPath and JMESPath.</li>
+  </ul>
+
+  <h2>Built for performance</h2>
+  <p>
+    JSONLab offloads heavy work such as parsing and comparison to background web
+    workers, so the interface stays responsive even with large files (20MB+)
+    that would freeze many other online viewers.
+  </p>
+
+  <h2>Get in touch</h2>
+  <p>
+    Have feedback, found a bug, or want to request a feature? We would love to
+    hear from you — head over to our <a href="/contact">Contact</a> page.
+  </p>
+</ContentPage>

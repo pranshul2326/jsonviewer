@@ -103,6 +103,14 @@ export interface ViewerPanelProps {
   progress?: number | null;
   /** Optional label for the in-flight operation shown by the StatusBar. */
   progressLabel?: string;
+  /**
+   * Compact embed (e.g. on the marketing homepage). When true the editor/tree
+   * reserve a shorter, bounded desktop height instead of nearly the full
+   * viewport, so server-rendered content below the workbench (SEO copy, FAQ)
+   * stays visible without a long scroll. The dedicated tool page leaves this
+   * off and uses the full height.
+   */
+  compact?: boolean;
 }
 
 /**
@@ -110,9 +118,17 @@ export interface ViewerPanelProps {
  * (or the validation error state when the content is invalid), and the status
  * bar beneath. Collapse-all / expand-all controls drive the tree.
  */
-export default function ViewerPanel({ progress, progressLabel }: ViewerPanelProps = {}) {
+export default function ViewerPanel({ progress, progressLabel, compact = false }: ViewerPanelProps = {}) {
   const doc = useStore($document);
   const settings = useStore($settings);
+
+  // Desktop sizing for the editor/tree panes.
+  //   • Full page (default): a tall height close to the full viewport so the
+  //     editor/tree are large, similar to the Grid and Converter tools.
+  //   • Compact embed (homepage): a shorter bounded height so the SEO/FAQ copy
+  //     below the workbench stays visible.
+  const paneHeightClass = compact ? 'md:h-[55vh]' : 'md:h-[calc(100dvh-7rem)]';
+  const paneMinHeightClass = compact ? 'md:min-h-[55vh]' : 'md:min-h-[calc(100dvh-7rem)]';
 
   // The imperative tree controls, captured once TreePanel mounts (Req 1.4/1.5).
   const treeApiRef = useRef<TreePanelApi | null>(null);
@@ -240,17 +256,17 @@ export default function ViewerPanel({ progress, progressLabel }: ViewerPanelProp
       data-tool-panel="viewer"
       class="flex flex-col"
     >
-      {/* Editor + tree, side by side (stacked on narrow screens). Each pane
-          grows to its content (page scrolls); a draggable divider resizes the
-          two on the wide layout. `items-start` lets each pane be its own
-          height rather than stretching to the taller one. */}
+      {/* Editor + tree, side by side (stacked on narrow screens). Each pane has
+          its own height; a draggable divider resizes the two on the wide
+          layout. `items-start` lets each pane be its own height rather than
+          stretching to the taller one. */}
       <div ref={splitRef} class="flex flex-col md:flex-row md:items-start">
         {/* Editor (left): a toolbar (Format / Minify) over the Monaco editor.
             The editor auto-sizes to its content (capped), so a folded/short
             document leaves no empty canvas. */}
         <div
-          class="flex h-[calc(100dvh-13rem)] min-w-0 flex-col border-b border-hairline md:border-b-0"
-          style={isWide ? { flex: `0 0 ${leftPct}%` } : { flex: '1 1 0' }}
+          class={`flex h-[45vh] min-w-0 flex-col border-b border-hairline ${paneHeightClass} md:border-b-0`}
+          style={isWide ? { flex: `0 0 ${leftPct}%` } : undefined}
         >
           <div class="flex items-center gap-xs border-b border-hairline px-sm py-xs">
             <button
@@ -294,7 +310,7 @@ export default function ViewerPanel({ progress, progressLabel }: ViewerPanelProp
         </div>
 
         {/* Tree / validation error state (right). */}
-        <div class="flex min-h-[calc(100dvh-13rem)] min-w-0 flex-col" style={{ flex: '1 1 0' }}>
+        <div class={`flex min-h-[50vh] min-w-0 flex-col ${paneMinHeightClass}`} style={{ flex: '1 1 0' }}>
           {/* Tree controls: collapse-all (Req 1.4) and expand-all (Req 1.5).
               Disabled when there is no tree to act on. */}
           <div class="flex items-center gap-xs border-b border-hairline px-sm py-xs">

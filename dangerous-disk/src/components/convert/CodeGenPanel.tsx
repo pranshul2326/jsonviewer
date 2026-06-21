@@ -91,6 +91,13 @@ const LANGUAGES: ReadonlyArray<{ id: CodeLanguage; label: string }> = [
 type Status = 'idle' | 'generating' | 'done' | 'error';
 
 /**
+ * Message shown for empty/whitespace-only input (Req 14.8). It is rendered as a
+ * single self-contained line (no separate "Cannot generate code" heading) since
+ * the heading would be redundant; genuine errors keep the heading + detail.
+ */
+const EMPTY_INPUT_MESSAGE = 'Cannot generate code from empty input.';
+
+/**
  * The Code Generator panel. Selects a target language, generates typed
  * definitions from the shared JSON document in a worker, and renders either the
  * generated source (with a copy control) or the validation error state.
@@ -145,7 +152,7 @@ export default function CodeGenPanel({ generate }: CodeGenPanelProps) {
     // without a worker round-trip. No code is displayed.
     if (sourceText.trim() === '') {
       setCode('');
-      setError('Cannot generate code from empty input.');
+      setError(EMPTY_INPUT_MESSAGE);
       setStatus('error');
       return;
     }
@@ -211,7 +218,7 @@ export default function CodeGenPanel({ generate }: CodeGenPanelProps) {
     <section
       aria-label="Code generator panel"
       data-tool-panel="codegen"
-      class="flex flex-col gap-md"
+      class="flex h-full min-h-0 flex-col gap-md"
     >
       {/* ── Controls ─────────────────────────────────────────────────── */}
       <div class="flex flex-wrap items-center gap-md">
@@ -243,7 +250,7 @@ export default function CodeGenPanel({ generate }: CodeGenPanelProps) {
       </div>
 
       {/* ── Output ───────────────────────────────────────────────────── */}
-      <div class="flex min-h-0 flex-col gap-xs">
+      <div class="flex min-h-0 flex-1 flex-col gap-xs">
         <div class="flex items-center gap-xs">
           <label class="text-body-sm-strong text-ink" for="codegen-output">
             {`Output · ${languageLabel}`}
@@ -272,20 +279,28 @@ export default function CodeGenPanel({ generate }: CodeGenPanelProps) {
         </div>
 
         {status === 'error' && error ? (
-          // The shared validation error state (Req 14.7, 14.8).
+          // The shared validation error state (Req 14.7, 14.8). Empty input
+          // renders a single self-contained line; other errors show the generic
+          // heading plus the specific detail message.
           <div
             role="alert"
-            class="min-h-[280px] w-full overflow-auto rounded-sm border border-error bg-error-soft p-sm"
+            class="min-h-[280px] w-full flex-1 overflow-auto rounded-sm border border-error bg-error-soft p-sm"
           >
-            <p class="text-body-sm-strong text-error-deep">Cannot generate code</p>
-            <p class="mt-xs text-body-sm text-error-deep">{error}</p>
+            {error === EMPTY_INPUT_MESSAGE ? (
+              <p class="text-body-sm-strong text-error-deep">{error}</p>
+            ) : (
+              <>
+                <p class="text-body-sm-strong text-error-deep">Cannot generate code</p>
+                <p class="mt-xs text-body-sm text-error-deep">{error}</p>
+              </>
+            )}
           </div>
         ) : (
           <textarea
             id="codegen-output"
             readOnly
             aria-label={`Generated ${languageLabel}`}
-            class="min-h-[280px] w-full resize-y rounded-sm border border-divider bg-canvas-soft p-sm font-mono text-code text-body"
+            class="min-h-[280px] w-full flex-1 resize-none rounded-sm border border-divider bg-canvas-soft p-sm font-mono text-code text-body"
             value={code}
             placeholder={`Provide JSON to see the ${languageLabel} definitions.`}
           />

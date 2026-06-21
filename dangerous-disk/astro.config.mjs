@@ -5,6 +5,10 @@ import tailwindcss from '@tailwindcss/vite';
 
 // https://astro.build/config
 export default defineConfig({
+  // Canonical production origin. Used to build absolute canonical/OG/Twitter
+  // URLs and the sitemap. Change this in one place if the domain changes.
+  site: 'https://jsonviewformat.com',
+
   // 100% client-side, statically exported app (Requirement 18: privacy).
   output: 'static',
 

@@ -1,0 +1,48 @@
+---
+import ContentPage from '../layouts/ContentPage.astro';
+
+const title = 'Contact Us — JSONLab';
+const description =
+  'Get in touch with the JSONLab team. Send feedback, report a bug, or request a feature for our free online JSON tools.';
+const keywords = 'contact jsonlab, jsonlab support, json tools feedback';
+
+// Contact address. Update this to your real support inbox.
+const email = 'pranshul2326@gmail.com';
+---
+
+<ContentPage title={title} description={description} heading="Contact Us" keywords={keywords}>
+  <p>
+    We would love to hear from you. Whether you have feedback, found a bug, want
+    to request a feature, or just want to say hello, here is how to reach the
+    <strong>JSONLab</strong> team.
+  </p>
+
+  <h2>Email</h2>
+  <p>
+    The fastest way to reach us is by email at
+    <a href={`mailto:${email}`}>{email}</a>. We read every message and aim to
+    reply within a few business days.
+  </p>
+
+  <h2>What to include</h2>
+  <p>To help us respond quickly, please include:</p>
+  <ul>
+    <li>A clear description of your question, feedback or issue.</li>
+    <li>If reporting a bug, the steps to reproduce it and the browser you are using.</li>
+    <li>For feature requests, what you are trying to accomplish and why it would help.</li>
+  </ul>
+
+  <p>
+    <strong>Please do not paste sensitive or confidential JSON into your
+    message.</strong> JSONLab processes your data locally in your browser, and
+    we never want to receive private data by email. A small, anonymized sample
+    is usually enough for us to help.
+  </p>
+
+  <h2>Privacy</h2>
+  <p>
+    Any information you send us by email is used solely to respond to your
+    inquiry. See our <a href="/privacy-policy">Privacy Policy</a> for more
+    details on how we handle data.
+  </p>
+</ContentPage>

@@ -1,0 +1,191 @@
+---
+// ErrorPage.astro — shared layout for HTTP error pages (404, 500, etc.).
+//
+// Wraps the base Layout (head, SEO meta, fonts, CSP, theme bootstrap) and
+// renders a centered, token-driven message with the status code, a short
+// explanation (<slot/>) and quick links back into the app.
+//
+// On a statically exported site, Astro emits `src/pages/404.astro` as
+// `404.html`, which most static hosts serve automatically for unknown routes.
+// A custom `500.html` is served by many hosts when an origin/server error
+// occurs. These pages are intentionally marked noindex via `robots`.
+
+import Layout from './Layout.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+
+interface Props {
+  /** Page <title>. */
+  title: string;
+  /** Meta description. */
+  description: string;
+  /** Big status code shown in the hero, e.g. "404". */
+  code: string;
+  /** Short headline under the code, e.g. "Page not found". */
+  heading: string;
+}
+
+const { title, description, code, heading } = Astro.props;
+---
+
+<Layout title={title} description={description} robots="noindex, follow">
+  <div class="page-mesh" aria-hidden="true"></div>
+
+  <div class="relative z-10 flex min-h-screen flex-col">
+    <header class="error-topbar">
+      <a class="error-brand" href="/">JSONLab</a>
+    </header>
+
+    <main class="error-main">
+      <div class="error-card">
+        <p class="error-code">{code}</p>
+        <h1 class="error-heading">{heading}</h1>
+        <div class="error-body">
+          <slot />
+        </div>
+        <div class="error-actions">
+          <a class="error-btn error-btn-primary" href="/">Back to JSONLab</a>
+          <a class="error-btn" href="/contact">Report a problem</a>
+        </div>
+      </div>
+    </main>
+
+    <SiteFooter />
+  </div>
+</Layout>
+
+<style>
+  .error-topbar {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--color-divider);
+    background-color: var(--color-canvas);
+  }
+
+  .error-brand {
+    font-family: var(--font-sans);
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--color-ink);
+    text-decoration: none;
+  }
+
+  .error-main {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1rem;
+  }
+
+  .error-card {
+    max-width: 32rem;
+    width: 100%;
+    text-align: center;
+    font-family: var(--font-sans);
+  }
+
+  .error-code {
+    margin: 0;
+    font-size: clamp(4rem, 18vw, 7rem);
+    font-weight: 700;
+    line-height: 1;
+    color: var(--color-ink);
+    letter-spacing: -0.03em;
+  }
+
+  .error-heading {
+    margin: 0.5rem 0 0.75rem;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--color-ink);
+  }
+
+  .error-body {
+    color: var(--color-body, var(--color-ink));
+    line-height: 1.65;
+  }
+
+  .error-body :global(p) {
+    margin: 0 0 1rem;
+  }
+
+  .error-body :global(a) {
+    color: var(--color-link);
+    text-decoration: underline;
+  }
+
+  .error-actions {
+    margin-top: 1.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: center;
+  }
+
+  .error-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.6rem 1.1rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--color-hairline);
+    font-family: var(--font-sans);
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--color-ink);
+    background-color: var(--color-canvas);
+    text-decoration: none;
+  }
+
+  .error-btn:hover {
+    background-color: var(--color-canvas-soft);
+  }
+
+  .error-btn:focus-visible {
+    outline: 2px solid var(--color-link, currentColor);
+    outline-offset: 2px;
+  }
+
+  .error-btn-primary {
+    color: var(--color-on-primary);
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+  }
+
+  .error-btn-primary:hover {
+    opacity: 0.9;
+    background-color: var(--color-primary);
+  }
+
+  .page-mesh {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.12;
+    background:
+      radial-gradient(
+        40% 60% at 15% 20%,
+        var(--color-gradient-preview-start) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        45% 55% at 85% 15%,
+        var(--color-gradient-develop-start) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        50% 60% at 75% 90%,
+        var(--color-gradient-ship-start) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        45% 50% at 25% 95%,
+        var(--color-gradient-develop-end) 0%,
+        transparent 70%
+      );
+  }
+</style>

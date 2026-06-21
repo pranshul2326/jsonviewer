@@ -1,0 +1,20 @@
+---
+import ErrorPage from '../layouts/ErrorPage.astro';
+
+const title = '404 — Page Not Found | JSONLab';
+const description = 'The page you were looking for could not be found.';
+---
+
+<ErrorPage title={title} description={description} code="404" heading="Page not found">
+  <p>
+    Sorry, the page you were looking for doesn’t exist or may have been moved.
+    Double-check the address, or jump back to the JSONLab workbench to keep
+    working with your JSON.
+  </p>
+  <p>
+    You can also visit <a href="/about">About</a>,
+    <a href="/privacy-policy">Privacy Policy</a>,
+    <a href="/terms">Terms &amp; Conditions</a> or
+    <a href="/contact">Contact</a>.
+  </p>
+</ErrorPage>

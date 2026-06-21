@@ -18,13 +18,125 @@
 
 import Layout from '../layouts/Layout.astro';
 import AppShell from '../components/app/AppShell.tsx';
+import SiteFooter from '../components/SiteFooter.astro';
+
+// Home page SEO metadata. Targets the primary brand keyword (JSONLab) plus the
+// high-intent supporting keywords the tool actually serves (formatter, viewer,
+// validator, diff/compare, converters, code generation, query).
+const title = 'JSONLab — Free Online JSON Viewer, Formatter, Validator & Converter';
+const description =
+  'JSONLab is a free, privacy-first online JSON formatter, viewer, validator, beautifier and diff checker. Format, validate, edit, compare and convert JSON to CSV, YAML, XML, Java, Go, TypeScript and more — 100% in your browser, no upload.';
+const keywords = [
+  'JSONLab',
+  'json formatter',
+  'json',
+  'what is a json file',
+  'json viewer',
+  'json validator',
+  'json syntax square brackets',
+  'json beautifier',
+  'json format',
+  'json file',
+  'json diff',
+  'json difference',
+  'json to csv',
+  'json editor',
+  'json compare',
+  'json parser',
+  'json to yml',
+  'json to yaml',
+  'json to java',
+  'json to go',
+  'json to table',
+  'json converter',
+  'json minifier',
+  'json to xml',
+  'json to toml',
+  'json to typescript',
+  'json to python',
+  'json to dart',
+  'json tree viewer',
+  'json path',
+  'jmespath',
+  'online json tools',
+  'json merge',
+].join(', ');
+
+// FAQ content — rendered both as a visible <details> accordion (below) and as
+// schema.org FAQPage JSON-LD (emitted in <head>), so the structured data always
+// mirrors what users actually see. Answers are HTML strings used verbatim in
+// both places. Targets question/voice/AI-answer queries around JSON basics plus
+// JSONLab's own tools.
+const faqs: { q: string; a: string }[] = [
+  {
+    q: 'What is a JSON file?',
+    a: '<p>A JSON file (with a <code>.json</code> extension) is a plain-text file that stores structured data using JavaScript Object Notation. It is built from key/value pairs, arrays and nested objects, and is widely used for APIs, configuration and data exchange between applications. You can open and read any JSON file in JSONLab directly in your browser.</p>',
+  },
+  {
+    q: 'What is the difference between XML and JSON?',
+    a: '<p>JSON and XML both store and exchange structured data, but JSON is lighter and easier to read. JSON uses key/value pairs with braces <code>{}</code> and arrays with brackets <code>[]</code>, while XML wraps data in nested opening and closing tags. JSON maps directly to native data types (objects, arrays, numbers, booleans), is less verbose, and is faster to parse — which is why most modern web APIs prefer it. JSONLab can convert between JSON and XML in both directions.</p>',
+  },
+  {
+    q: 'How to open a JSON file?',
+    a: '<p>The easiest way is to paste or drag the file into JSONLab — it opens instantly in your browser as a formatted, collapsible tree, with no upload. You can also open a <code>.json</code> file in any text editor (VS Code, Notepad, TextEdit) or drag it into a browser tab, but a dedicated JSON viewer makes it far easier to read and navigate.</p>',
+  },
+  {
+    q: 'What does JSON stand for?',
+    a: '<p>JSON stands for <strong>JavaScript Object Notation</strong>. It is a language-independent data format that originated from JavaScript object syntax but is now supported by virtually every programming language.</p>',
+  },
+  {
+    q: 'What is JSON format?',
+    a: '<p>JSON format is a set of simple rules for representing data as text. Objects are wrapped in curly braces <code>{}</code> and contain comma-separated <code>"key": value</code> pairs; arrays are wrapped in square brackets <code>[]</code> and hold ordered lists of values. Values can be strings, numbers, booleans, <code>null</code>, objects or arrays. Keys and string values must use double quotes. JSONLab validates and beautifies your data against these rules automatically.</p>',
+  },
+  {
+    q: 'How to create a JSON file?',
+    a: '<p>Type or paste your data into the JSONLab editor, format it to confirm it is valid, then save or copy it into a file with a <code>.json</code> extension. Start from an object like <code>{ "name": "Ada", "active": true }</code>, add the keys and values you need, and use the validator to catch any missing commas or quotes before you save.</p>',
+  },
+  {
+    q: 'How do I convert a JSON file to readable?',
+    a: '<p>Paste the JSON into JSONLab and click <strong>Format</strong> (beautify). It re-indents the data with your chosen spacing and shows it as a collapsible tree, turning a single minified line into clean, readable structure. You can expand or collapse any object or array and copy the path to any value.</p>',
+  },
+  {
+    q: 'Can Chrome open JSON?',
+    a: '<p>Yes. Chrome can display a <code>.json</code> file if you open it as a URL or drag it into a tab, but it shows raw, unformatted text. For a readable, collapsible, syntax-highlighted view with validation and search, open the file in JSONLab instead — it runs entirely in your browser, including Chrome.</p>',
+  },
+  {
+    q: 'What is a JSON viewer?',
+    a: '<p>A JSON viewer is a tool that displays JSON data in a structured, easy-to-read way — typically a collapsible tree with syntax highlighting, type indicators and search — instead of raw text. JSONLab is a privacy-first online JSON viewer that also formats, validates, compares and converts JSON, all without uploading your data.</p>',
+  },
+  {
+    q: 'How to beautify JSON in Chrome?',
+    a: '<p>Open JSONLab in Chrome, paste your JSON, and click <strong>Format</strong> to beautify it with proper indentation. Because everything runs client-side, you do not need a browser extension and your data never leaves the tab. You can switch indentation between 2 spaces, 4 spaces or tabs, or minify it again with one click.</p>',
+  },
+  // ── JSONLab-specific questions (based on our functionality) ──────────────
+  {
+    q: 'How do I validate JSON and fix errors?',
+    a: '<p>JSONLab validates as you type, highlighting syntax errors inline with the exact line and column. The built-in smart fixer can auto-repair common mistakes such as trailing commas, single quotes and unquoted keys, so you can turn broken JSON into valid JSON in one step.</p>',
+  },
+  {
+    q: 'How do I convert JSON to CSV, YAML or XML?',
+    a: '<p>Open the Converter tool, paste your JSON, and choose the target format. JSONLab converts JSON to CSV, YAML, XML and TOML (and back again), and can generate typed code such as TypeScript interfaces, Java POJOs, Go structs, Python dataclasses and Dart classes from a sample.</p>',
+  },
+  {
+    q: 'How do I compare two JSON files?',
+    a: '<p>Use the Diff Checker. Paste one document on each side and JSONLab runs a semantic comparison that ignores key order and formatting, so only real changes are highlighted. You can view differences side-by-side or unified, merge changes, and export a standard RFC 6902 JSON Patch.</p>',
+  },
+  {
+    q: 'Is JSONLab free, and is my data private?',
+    a: '<p>Yes. JSONLab is completely free and ad-free, and every feature — viewing, formatting, validating, diffing and converting — runs 100% inside your browser. Your JSON is never uploaded to a server, so sensitive API payloads and logs never leave your machine.</p>',
+  },
+  {
+    q: 'Can JSONLab handle large JSON files?',
+    a: '<p>Yes. JSONLab offloads parsing and comparison to background web workers, so the interface stays responsive even with large files (20MB+) that would freeze many other online viewers.</p>',
+  },
+];
 ---
 
 <!-- Full-height flex column: a compact hero on top, the workbench filling the
      rest of the viewport so there is no dead space below it. The mesh-gradient
      theme is painted once behind the whole page (see `.page-mesh`), so it shows
      through the gaps/margins while the solid cards sit on top of it. -->
-<Layout>
+<Layout title={title} description={description} keywords={keywords}>
   <!-- Page-wide background wash (decorative). Fixed behind all content so the
        hero theme tints the entire page, not the boxes. -->
   <div class="page-mesh" aria-hidden="true"></div>
@@ -37,10 +149,279 @@ import AppShell from '../components/app/AppShell.tsx';
     <main
       class="flex w-full flex-col"
     >
-      <AppShell client:load enableShare={false} />
+      <AppShell client:load enableShare={false} initialTool="viewer" compact />
     </main>
+
+    <!-- ── SEO content band ───────────────────────────────────────────────
+         Crawlable, server-rendered copy that gives search engines and AI
+         answer engines real context about JSONLab. It carries the single page
+         <h1> plus keyword-rich headings/paragraphs, and sits below the
+         interactive workbench so it never competes with the tool for space. -->
+    <section class="seo-content" aria-label="About JSONLab">
+      <article class="seo-prose">
+        <h1>JSONLab — Free Online JSON Viewer, Formatter, Validator &amp; Converter</h1>
+
+        <p>
+          <strong>JSONLab</strong> is a fast, free and privacy-first online JSON
+          workbench built for developers. It brings a complete set of
+          <strong>json</strong> tools together in one clean, ad-free interface: a
+          <strong>json viewer</strong>, a <strong>json formatter</strong>, a
+          <strong>json validator</strong>, a <strong>json diff</strong> checker
+          and a full <strong>json converter</strong>. Everything runs 100% in
+          your browser, so your data never leaves your machine — paste a payload,
+          format it, and you are done. No sign-up, no upload, no tracking.
+        </p>
+
+        <h2>View, edit and beautify your JSON</h2>
+        <p>
+          Drop any <strong>json file</strong> into the editor and explore it in a
+          collapsible tree view. The built-in <strong>json editor</strong> lets
+          you add, rename and delete keys, copy the exact JSON path of any node,
+          and preview rich values like image URLs, colors and timestamps. The
+          one-click <strong>json beautifier</strong> applies a clean
+          <strong>json format</strong> with your choice of 2-space, 4-space or
+          tab indentation, while the minifier strips whitespace for compact
+          production payloads. Under the hood a strict <strong>json parser</strong>
+          reads your data exactly as written, even for very large files. JSONLab
+          doubles as a clean <strong>json tree viewer</strong> for quickly
+          understanding the shape of unfamiliar API responses.
+        </p>
+
+        <h2>Validate JSON and fix syntax errors</h2>
+        <p>
+          The real-time <strong>json validator</strong> highlights syntax errors
+          inline with precise line numbers and clear messages, so you can see at
+          a glance when a quote, comma or bracket is wrong. Wondering about
+          <strong>json syntax square brackets</strong>? In JSON, square brackets
+          <code>[ ]</code> define an array (an ordered list of values) and curly
+          braces <code>{`{ }`}</code> define an object of key/value pairs. The
+          smart fixer repairs the most common mistakes automatically — trailing
+          commas, single quotes and unquoted keys. New to the format? A
+          <strong>json file</strong> is simply plain text written in JavaScript
+          Object Notation, which answers the common question
+          <em>what is a json file</em>.
+        </p>
+
+        <h2>Compare and diff two JSON documents</h2>
+        <p>
+          Need to <strong>json compare</strong> two payloads? The semantic
+          <strong>json diff</strong> engine understands structure, not just text,
+          so reordered keys are correctly treated as identical. You see every
+          real <strong>json difference</strong> side by side, can merge changes
+          left-to-right, export a standard RFC 6902 patch, and even run a
+          three-way merge to resolve conflicts between a base, left and right
+          version.
+        </p>
+
+        <h2>Convert JSON to anything</h2>
+        <p>
+          The <strong>json converter</strong> turns your data into the format you
+          need and back again: <strong>json to csv</strong>, <strong>json to
+          yml</strong> / YAML, <strong>json to xml</strong> and TOML. The
+          <strong>json to table</strong> grid view transforms an array of objects
+          into a searchable, sortable spreadsheet. JSONLab also generates
+          strongly-typed code straight from a sample, including
+          <strong>json to java</strong> POJOs, <strong>json to go</strong>
+          structs, TypeScript interfaces, Python dataclasses and Dart classes.
+          For slicing large datasets, the built-in JSONPath and JMESPath query
+          bar lets you filter and extract exactly what you want.
+        </p>
+
+        <h2>Why developers choose JSONLab</h2>
+        <p>
+          JSONLab combines viewing, editing, validating, diffing and converting
+          in a single keyboard-friendly app that stays fast even with 20MB+
+          files thanks to background web workers. It is ad-free, open in your
+          browser, and built privacy-first — making it a modern alternative to
+          cluttered legacy <strong>online json tools</strong>. Power users get
+          fast keyboard shortcuts for formatting, clearing and collapsing nodes,
+          plus shareable links that encode a payload directly in the URL — handy
+          for sending a mock response to a teammate. Whether you need to quickly
+          read an API response, debug a config file, beautify a minified blob, or
+          run a one-off <strong>json compare</strong>, JSONLab handles it without
+          installs or accounts. Bookmark JSONLab as your everyday JSON viewer,
+          formatter and converter.
+        </p>
+      </article>
+    </section>
+
+    <!-- ── FAQ section ────────────────────────────────────────────────────
+         Visible, crawlable Q&A rendered as an accessible <details> accordion.
+         The same content is emitted as schema.org FAQPage JSON-LD below, so the
+         structured data mirrors what users see (a Google rich-results
+         requirement). Targets question/voice/AI-answer search queries. -->
+    <section class="faq" aria-labelledby="faq-heading">
+      <div class="faq-inner">
+        <h2 id="faq-heading">Frequently asked questions about JSON</h2>
+        {
+          faqs.map((item) => (
+            <details class="faq-item">
+              <summary>{item.q}</summary>
+              <div class="faq-answer" set:html={item.a} />
+            </details>
+          ))
+        }
+      </div>
+    </section>
+
+    {/* FAQPage structured data — built from the same `faqs` array as the
+        visible accordion above so the two never drift apart. */}
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: faqs.map((item) => ({
+          '@type': 'Question',
+          name: item.q,
+          acceptedAnswer: { '@type': 'Answer', text: item.a },
+        })),
+      })}
+    />
+
+    <SiteFooter />
   </div>
 </Layout>
+
+<style>
+  /* SEO content band: token-driven, readable typography that matches the
+     app's design system without competing with the workbench above it. */
+  .seo-content {
+    position: relative;
+    z-index: 10;
+    padding: 2.5rem 1rem 3.5rem;
+  }
+
+  .seo-prose {
+    max-width: 72ch;
+    margin: 0 auto;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    line-height: 1.65;
+  }
+
+  .seo-prose h1 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    line-height: 1.25;
+    margin: 0 0 1rem;
+  }
+
+  .seo-prose h2 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin: 1.75rem 0 0.5rem;
+  }
+
+  .seo-prose p {
+    margin: 0 0 1rem;
+    color: var(--color-ink-soft, var(--color-ink));
+  }
+
+  .seo-prose code {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.9em;
+    padding: 0.05em 0.3em;
+    border-radius: 0.25rem;
+    background-color: var(--color-canvas-soft);
+  }
+
+  @media (min-width: 768px) {
+    .seo-prose h1 {
+      font-size: 2.125rem;
+    }
+  }
+</style>
+
+<style>
+  /* FAQ accordion: token-driven, accessible <details> list. */
+  .faq {
+    position: relative;
+    z-index: 10;
+    padding: 0 1rem 4rem;
+  }
+
+  .faq-inner {
+    max-width: 72ch;
+    margin: 0 auto;
+  }
+
+  .faq-inner h2 {
+    font-family: var(--font-sans);
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--color-ink);
+    margin: 0 0 1.25rem;
+  }
+
+  .faq-item {
+    border: 1px solid var(--color-hairline, var(--color-divider));
+    border-radius: 0.5rem;
+    background-color: var(--color-canvas);
+    margin-bottom: 0.625rem;
+    overflow: hidden;
+  }
+
+  .faq-item summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 0.875rem 1rem;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--color-ink);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  /* Hide the native disclosure triangle, draw our own +/- with a rotating glyph. */
+  .faq-item summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .faq-item summary::after {
+    content: '+';
+    font-size: 1.25rem;
+    font-weight: 400;
+    line-height: 1;
+    color: var(--color-mute, var(--color-ink-soft));
+    transition: transform 0.15s ease;
+  }
+
+  .faq-item[open] summary::after {
+    content: '−';
+  }
+
+  .faq-item summary:hover {
+    background-color: var(--color-canvas-soft);
+  }
+
+  .faq-item summary:focus-visible {
+    outline: 2px solid var(--color-link, currentColor);
+    outline-offset: -2px;
+  }
+
+  .faq-answer {
+    padding: 0 1rem 1rem;
+    font-family: var(--font-sans);
+    line-height: 1.65;
+    color: var(--color-ink-soft, var(--color-ink));
+  }
+
+  .faq-answer :global(p) {
+    margin: 0;
+  }
+
+  .faq-answer :global(code) {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.9em;
+    padding: 0.05em 0.3em;
+    border-radius: 0.25rem;
+    background-color: var(--color-canvas-soft);
+  }
+</style>
 
 <style>
   /* Vercel-style mesh gradient, built from brand gradient-stop tokens
