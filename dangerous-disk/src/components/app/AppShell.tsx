@@ -495,10 +495,20 @@ export default function AppShell({
   // below it visible); every other panel is rendered with no props.
   const activePanelElement =
     activeTool === 'viewer' ? <ViewerPanel compact={compact} /> : <ActivePanel />;
-  // The Viewer and Diff tools grow to their content (the page scrolls); the
-  // Grid and Converter fill a fixed, viewport-tall card so their virtualization
-  // has a bounded scroll area.
-  const fillTool = activeTool === 'grid' || activeTool === 'converter';
+  // Tool-card height. Grid and Converter fill a fixed, viewport-tall card at
+  // every breakpoint so their virtualization has a bounded scroll area. The
+  // Viewer matches that exact card height on desktop — so all tool cards are the
+  // same size — while keeping its mobile behavior of growing with content (the
+  // page scrolls), and its compact homepage embed (which must leave the SEO/FAQ
+  // copy below the workbench visible). The Diff tool is intentionally left to
+  // grow: its Compare mode stacks the semantic-diff list and patch export below
+  // a tall editor, which must scroll the page rather than be clipped.
+  const cardHeightClass =
+    activeTool === 'grid' || activeTool === 'converter'
+      ? 'h-[calc(100dvh-6rem)] min-h-0'
+      : activeTool === 'viewer' && !compact
+        ? 'md:h-[calc(100dvh-6rem)] md:min-h-0'
+        : '';
 
   return (
     <section
@@ -520,9 +530,7 @@ export default function AppShell({
           (editor/tree/grid) is tall rather than leaving empty space below. */}
       <div
         data-active-tool={activeTool}
-        class={`mx-sm sm:mx-lg mb-md flex flex-col overflow-hidden rounded-md border border-hairline bg-canvas shadow-level-1 ${
-          fillTool ? 'h-[calc(100dvh-6rem)] min-h-0' : ''
-        }`}
+        class={`mx-sm sm:mx-lg mb-md flex flex-col overflow-hidden rounded-md border border-hairline bg-canvas shadow-level-1 ${cardHeightClass}`}
       >
         {activePanelElement}
       </div>

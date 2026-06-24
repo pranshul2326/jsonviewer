@@ -123,12 +123,17 @@ export default function ViewerPanel({ progress, progressLabel, compact = false }
   const settings = useStore($settings);
 
   // Desktop sizing for the editor/tree panes.
-  //   • Full page (default): a tall height close to the full viewport so the
-  //     editor/tree are large, similar to the Grid and Converter tools.
+  //   • Full page (default): the panes fill the fixed-height tool card (the
+  //     AppShell gives the Viewer card `md:h-[calc(100dvh-6rem)]` so it matches
+  //     the Grid/Converter cards). The split row and section grow to fill the
+  //     card, and the panes stretch to the row, so the editor/tree are large and
+  //     the card stays exactly the same size as the other tools.
   //   • Compact embed (homepage): a shorter bounded height so the SEO/FAQ copy
   //     below the workbench stays visible.
-  const paneHeightClass = compact ? 'md:h-[55vh]' : 'md:h-[calc(100dvh-7rem)]';
-  const paneMinHeightClass = compact ? 'md:min-h-[55vh]' : 'md:min-h-[calc(100dvh-7rem)]';
+  // On narrow screens both variants keep their fixed mobile heights and the page
+  // scrolls (the card has no fixed height below `md`).
+  const paneHeightClass = compact ? 'md:h-[55vh]' : 'md:h-auto';
+  const paneMinHeightClass = compact ? 'md:min-h-[55vh]' : 'md:min-h-0';
 
   // The imperative tree controls, captured once TreePanel mounts (Req 1.4/1.5).
   const treeApiRef = useRef<TreePanelApi | null>(null);
@@ -254,13 +259,19 @@ export default function ViewerPanel({ progress, progressLabel, compact = false }
     <section
       aria-label="Viewer panel"
       data-tool-panel="viewer"
-      class="flex flex-col"
+      class={`flex flex-col ${compact ? '' : 'md:min-h-0 md:flex-1'}`}
     >
       {/* Editor + tree, side by side (stacked on narrow screens). Each pane has
           its own height; a draggable divider resizes the two on the wide
-          layout. `items-start` lets each pane be its own height rather than
-          stretching to the taller one. */}
-      <div ref={splitRef} class="flex flex-col md:flex-row md:items-start">
+          layout. On desktop the row fills the card and the panes stretch to it
+          (so the card matches the Grid/Converter cards); on narrow screens the
+          panes keep their fixed heights and stack. */}
+      <div
+        ref={splitRef}
+        class={`flex flex-col md:flex-row ${
+          compact ? 'md:items-start' : 'md:min-h-0 md:flex-1 md:items-stretch'
+        }`}
+      >
         {/* Editor (left): a toolbar (Format / Minify) over the Monaco editor.
             The editor auto-sizes to its content (capped), so a folded/short
             document leaves no empty canvas. */}

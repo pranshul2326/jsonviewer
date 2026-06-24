@@ -197,9 +197,26 @@ export const $diffBuffers = map<DiffBuffers>({
 const DIFF_BUFFERS_KEY = 'jvf:diff-buffers';
 const DIFF_PERSIST_MAX = 2_000_000; // ~2 MB combined; skip persisting beyond this
 
-/** Restore the Diff buffers from localStorage on first load (client-only). */
-function loadDiffBuffers(): void {
+/** Guards the diff-buffer restore so it runs at most once per page load. */
+let diffBuffersRestored = false;
+
+/**
+ * Restore the Diff buffers from localStorage (client-only).
+ *
+ * Like {@link restoreDocumentFromSession}, this is intentionally NOT run at
+ * module-import time. The Diff tool's mode (`compare` vs `merge`) is restored
+ * here, and doing it at import would mutate `$diffBuffers` before the AppShell
+ * island hydrates — while the server-rendered HTML was built with the default
+ * `compare` mode. A saved `merge` mode would then hydrate the Merge DOM against
+ * Compare markup, a hydration mismatch that left the Merge panel visibly
+ * distorted until a re-render (e.g. toggling to Compare and back) reconciled it.
+ * AppShell/DiffTool calls this from a mount effect instead, so the restore
+ * happens *after* hydration and the panel renders cleanly on first load.
+ */
+export function restoreDiffBuffersFromStorage(): void {
+  if (diffBuffersRestored) return;
   if (typeof localStorage === 'undefined') return;
+  diffBuffersRestored = true;
   try {
     const raw = localStorage.getItem(DIFF_BUFFERS_KEY);
     if (!raw) return;
@@ -218,8 +235,6 @@ function loadDiffBuffers(): void {
     /* ignore corrupt or blocked storage */
   }
 }
-
-loadDiffBuffers();
 
 $diffBuffers.listen((value) => {
   if (typeof localStorage === 'undefined') return;

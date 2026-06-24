@@ -241,7 +241,7 @@ export function StatusBar({ progress, progressLabel }: StatusBarProps) {
 
   return (
     <div
-      class="flex h-8 items-center justify-between gap-2 border-t border-hairline bg-canvas px-2 text-body sm:gap-4 sm:px-4"
+      class="flex h-8 shrink-0 items-center justify-between gap-2 border-t border-hairline bg-canvas px-2 text-body sm:gap-4 sm:px-4"
       data-component="status-bar"
     >
       {/* Left: validity indicator (Req 6.2, 6.3). */}

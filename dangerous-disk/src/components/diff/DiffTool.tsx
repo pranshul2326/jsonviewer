@@ -19,9 +19,13 @@
 // operates on the shared document restores it byte-for-byte (Req 21.6). All
 // chrome derives from design tokens (Req 22.1).
 
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { useStore } from '@nanostores/preact';
-import { $document, $diffBuffers } from '../../lib/stores/document';
+import {
+  $document,
+  $diffBuffers,
+  restoreDiffBuffersFromStorage,
+} from '../../lib/stores/document';
 import DiffPanel from './DiffPanel';
 import { SemanticDiffList } from './SemanticDiffList';
 import { PatchExport } from './PatchExport';
@@ -43,17 +47,24 @@ const TAB_INACTIVE = 'text-body hover:text-ink';
  * document on entry) and switches between the compare and merge modes.
  */
 export default function DiffTool() {
-  // Seed Left from the shared document the first time the Diff tool is opened
-  // in this session. The buffers live in a shared store so both pasted
-  // documents survive switching to another tool and back (Req 21.5/21.6); the
-  // shared `$document` itself is never mutated here.
-  useState(() => {
+  // Initialize the Diff buffers *after* hydration (in a mount effect), never
+  // during render. Restoring persisted buffers — which include the active mode
+  // (compare/merge) — synchronously at module load would diverge from the
+  // server-rendered HTML (built with the default compare mode) and cause a
+  // hydration mismatch that visibly distorted the Merge panel on first load.
+  // Running it here ensures the first client render matches the SSR markup, and
+  // the store then settles to the restored/seeded values cleanly.
+  useEffect(() => {
+    // Restore any buffers persisted across page loads (sets `seeded` when found).
+    restoreDiffBuffersFromStorage();
+    // Otherwise seed Left from the shared document the first time the Diff tool
+    // is opened in this session, so the content the user was viewing flows into
+    // the comparison (Req 21.5/21.6). The shared `$document` is never mutated.
     const buffers = $diffBuffers.get();
     if (!buffers.seeded) {
       $diffBuffers.set({ ...buffers, left: $document.get().text, seeded: true });
     }
-    return null;
-  });
+  }, []);
 
   const { left: leftText, right: rightText, mode } = useStore($diffBuffers);
 
