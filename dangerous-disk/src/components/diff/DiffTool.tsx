@@ -80,7 +80,7 @@ export default function DiffTool() {
     <section
       aria-label="Diff Checker panel"
       data-tool-panel="diff"
-      class="flex flex-col gap-md p-md"
+      class="flex flex-col gap-xs p-md pt-xs"
     >
       {/* Mode toggle: Compare (diff + semantic list + patch) vs Merge. */}
       <div

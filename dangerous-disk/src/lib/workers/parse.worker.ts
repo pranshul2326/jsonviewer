@@ -3,10 +3,10 @@
 // `parse.worker.ts` — the dedicated module worker that runs JSON parsing and
 // validation off the main thread (Req 17.1, 17.4).
 //
-// It handles the `parse` and `validate` operations of the shared worker
-// protocol (`worker-protocol.ts`). Both operations run the same `json-core`
-// `parseJson` entry point, so worker-side and main-thread parsing behave
-// identically (design.md "Worker Strategy"):
+// It handles the `parse`, `validate` and `fix` operations of the shared worker
+// protocol (`worker-protocol.ts`). All three run the same `json-core` entry
+// points, so worker-side and main-thread behavior are identical
+// (design.md "Worker Strategy"):
 //
 //   - `parse`    — returns the full `ParseResult` (including the `JsonNode`
 //                  model on success, which is itself structured-clone-safe).
@@ -14,6 +14,11 @@
 //                  omitting the model so a large document's tree is not copied
 //                  back across the worker boundary just to light the
 //                  valid/error indicator.
+//   - `fix`      — runs the Smart Fixer (`smartFix`) and returns the corrected
+//                  text plus a per-category summary, or the first remaining
+//                  error's line/column when the document is not fully
+//                  correctable. Offloaded here so a Large_Document is repaired
+//                  off the main thread, keeping the UI responsive.
 //
 // A run posts a `progress` 0 on entry and `progress` 1 immediately before its
 // single terminal `result`. A syntactically invalid document is *not* a worker
@@ -22,6 +27,7 @@
 // exception produces a terminal `error` message.
 
 import { parseJson, type ParseErrorInfo } from '../json-core/parse';
+import { smartFix, type FixResult } from '../json-core/fixer';
 import type {
   WorkerErrorResponse,
   WorkerProgressResponse,
@@ -124,6 +130,16 @@ ctx.addEventListener('message', (event) => {
         : { ok: false, error: parsed.error };
       postProgress(jobId, 1);
       postResult<ValidateResultPayload>(jobId, verdict);
+      return;
+    }
+
+    if (op === 'fix') {
+      // Smart Fix runs the same `smartFix` pass as the main thread; its result
+      // (corrected text + per-category summary, or the first remaining error's
+      // line/column) is a plain, structured-clone-safe object.
+      const result = smartFix(textOf(request.payload));
+      postProgress(jobId, 1);
+      postResult<FixResult>(jobId, result);
       return;
     }
 

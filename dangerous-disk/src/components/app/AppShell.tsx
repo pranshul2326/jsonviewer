@@ -39,7 +39,8 @@ import {
 import { decodeShare, encodeShare } from '../../lib/json-core/share';
 import { routePath } from '../../lib/routing/tools';
 import {
-  dispatchShortcut,
+  findShortcut,
+  runShortcut,
   requestCollapseAll,
   type ShortcutContext,
 } from '../../lib/keyboard/shortcuts';
@@ -290,6 +291,22 @@ const PANELS: Record<Tool, ComponentType> = {
 // ---------------------------------------------------------------------------
 
 /**
+ * Whether `target` is an editable surface where keystrokes should be left to
+ * the browser: an `<input>`, `<textarea>`, any contenteditable, or anything
+ * inside a Monaco editor (whose editable surface is a `textarea.inputarea`
+ * within `.monaco-editor`). Used so modifier-less shortcuts never swallow plain
+ * typing in the editors.
+ */
+function isEditableTarget(target: EventTarget | null): boolean {
+  const el = target as (Element & { isContentEditable?: boolean }) | null;
+  if (!el || typeof el.closest !== 'function') return false;
+  if (el.isContentEditable) return true;
+  const tag = el.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  return el.closest('.monaco-editor, [contenteditable="true"]') !== null;
+}
+
+/**
  * Move keyboard focus to the navigation entry for `tool`, producing a visible
  * focus indicator (Req 19.5). The NavigationBar renders each entry as a button
  * tagged `data-tool="<tool>"`; at narrow widths several entries share the tag
@@ -477,12 +494,20 @@ export default function AppShell({
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
-      // Let the dedicated overlay handler own Escape while it is open.
-      const matched = dispatchShortcut(event, ctx);
-      if (matched) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
+      const shortcut = findShortcut(event);
+      if (!shortcut) return; // not a shortcut — never interfere (e.g. paste)
+
+      // Don't hijack modifier-less keys (e.g. "?") while the user is typing in
+      // an editable surface — the Monaco editor textarea, an <input>, a
+      // <textarea>, or any contenteditable. Otherwise these characters would be
+      // swallowed instead of inserted, breaking normal typing in the editors.
+      // Modifier-based shortcuts (Ctrl/Cmd+…) are still honored everywhere since
+      // they don't collide with ordinary text entry.
+      if (!shortcut.combo.mod && isEditableTarget(event.target)) return;
+
+      runShortcut(shortcut, ctx);
+      event.preventDefault();
+      event.stopPropagation();
     };
 
     window.addEventListener('keydown', onKeyDown, true);

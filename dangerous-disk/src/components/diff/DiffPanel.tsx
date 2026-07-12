@@ -117,6 +117,71 @@ const TOGGLE_ACTIVE = 'bg-canvas text-ink shadow-level-1';
 const TOGGLE_INACTIVE = 'text-body hover:text-ink';
 
 /**
+ * An inner diff pane whose scroll-position setters we may have shadowed to
+ * decouple it from the other pane (see {@link setDiffScrollSync}). The saved
+ * originals are stashed under non-enumerable-ish private keys so the patch is
+ * fully reversible.
+ */
+type ScrollPatchablePane = Monaco.editor.ICodeEditor & {
+  __jvfSetScrollTop?: Monaco.editor.ICodeEditor['setScrollTop'];
+  __jvfSetScrollLeft?: Monaco.editor.ICodeEditor['setScrollLeft'];
+};
+
+/**
+ * Enable or disable scroll synchronization between the Left (original) and
+ * Right (modified) panes of a Monaco diff editor.
+ *
+ * Monaco's diff editor force-syncs the two panes through internal reactive
+ * autoruns that call each inner editor's `setScrollTop` / `setScrollLeft` to
+ * keep their offsets aligned. There is no public option to turn this off.
+ * Crucially, user wheel and drag scrolling does NOT go through those public
+ * methods — it updates the editor's view layout directly and merely emits
+ * `onDidScrollChange`. So to let the user scroll the panes independently we
+ * shadow `setScrollTop` / `setScrollLeft` on each inner editor instance with
+ * no-ops: Monaco's cross-pane sync becomes inert while genuine user scrolling
+ * keeps working. Restoring the saved originals (and nudging a one-time
+ * re-align) re-enables the native synchronized behavior.
+ *
+ * The instances returned by `getOriginalEditor()` / `getModifiedEditor()` are
+ * the exact ones Monaco's autoruns drive, so patching them here is sufficient.
+ */
+function setDiffScrollSync(
+  editor: Monaco.editor.IStandaloneDiffEditor,
+  enabled: boolean,
+): void {
+  const panes = [
+    editor.getOriginalEditor(),
+    editor.getModifiedEditor(),
+  ] as ScrollPatchablePane[];
+
+  for (const pane of panes) {
+    if (enabled) {
+      // Restore the native setters so Monaco's autoruns can sync again.
+      if (pane.__jvfSetScrollTop) {
+        pane.setScrollTop = pane.__jvfSetScrollTop;
+        pane.setScrollLeft = pane.__jvfSetScrollLeft!;
+        delete pane.__jvfSetScrollTop;
+        delete pane.__jvfSetScrollLeft;
+      }
+    } else if (!pane.__jvfSetScrollTop) {
+      // Neutralize Monaco's programmatic cross-sync (idempotent): save the
+      // originals once, then replace them with no-ops.
+      pane.__jvfSetScrollTop = pane.setScrollTop.bind(pane);
+      pane.__jvfSetScrollLeft = pane.setScrollLeft.bind(pane);
+      pane.setScrollTop = () => {};
+      pane.setScrollLeft = () => {};
+    }
+  }
+
+  if (enabled) {
+    // Re-align once on re-enable: pull the original pane to the modified pane's
+    // current offset. Monaco then keeps them aligned on the next scroll.
+    const modified = editor.getModifiedEditor();
+    editor.getOriginalEditor().setScrollTop(modified.getScrollTop());
+  }
+}
+
+/**
  * The Diff Checker visualization. Mounts a Monaco diff editor on the client and
  * keeps it in sync with the Left/Right document buffers, surfacing the
  * no-differences message and per-document parse errors.
@@ -136,18 +201,33 @@ export function DiffPanel({
   onLeftChangeRef.current = onLeftChange;
   const onRightChangeRef = useRef(onRightChange);
   onRightChangeRef.current = onRightChange;
+  // Latest Left/Right text from the composing parent. Read when the models are
+  // created so a late seed (e.g. buffers restored from storage after a refresh,
+  // which arrives a tick after mount) is honored, and watched by the sync
+  // effects below to push external changes into the live models.
+  const initialLeftRef = useRef(initialLeft);
+  initialLeftRef.current = initialLeft;
+  const initialRightRef = useRef(initialRight);
+  initialRightRef.current = initialRight;
 
   // ── UI state (drives the banners; the editor content lives in Monaco) ──────
-  // Default to the unified single-pane layout on phone-width screens (where two
-  // side-by-side Monaco panes are cramped) and side-by-side elsewhere. This is
-  // only the initial default — the view toggle remains fully functional at every
-  // width, so the user can switch freely afterwards.
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
-      return window.matchMedia('(max-width: 640px)').matches ? 'unified' : 'side-by-side';
-    }
-    return 'side-by-side';
-  });
+  // Always default to the side-by-side layout so the Diff Checker presents two
+  // distinct, editable panes (Left = original, Right = modified) where the user
+  // can paste/compare two documents. Previously this defaulted to the unified
+  // single-pane layout on phone-width screens (≤640px), which showed only one
+  // pane and made the original side read-only inline — so users on narrower
+  // viewports saw "only one side" and couldn't paste into the left document.
+  // The view toggle remains fully functional, so unified is still one click
+  // away for anyone who prefers it.
+  const [viewMode, setViewMode] = useState<ViewMode>('side-by-side');
+  // Whether the two panes scroll together (default) or independently. Only
+  // meaningful in the side-by-side layout; the toggle is offered there and is
+  // enabled only once the documents actually differ.
+  const [syncScroll, setSyncScroll] = useState(true);
+  // Whether the diff editor is expanded to fill the whole viewport. A CSS-based
+  // fullscreen (fixed inset-0) is used rather than the native Fullscreen API so
+  // the app's design tokens, dark mode, and chrome continue to apply unchanged.
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [errors, setErrors] = useState<DiffDocError[]>([]);
   // Whether the two documents are structurally identical (Req 9.6). Retained
   // across parse failures (Req 9.7), so it is updated only when both are valid.
@@ -167,6 +247,9 @@ export function DiffPanel({
   // Latest view mode, read inside the async setup without re-subscribing.
   const viewModeRef = useRef<ViewMode>(viewMode);
   viewModeRef.current = viewMode;
+  // Latest sync-scroll choice, applied to the editor once it is created.
+  const syncScrollRef = useRef(syncScroll);
+  syncScrollRef.current = syncScroll;
 
   // Mount Monaco (client-only) and wire change-driven evaluation.
   useEffect(() => {
@@ -346,8 +429,8 @@ export function DiffPanel({
         lineHeight: 20,
       });
 
-      const original = monaco.editor.createModel(initialLeft, 'json');
-      const modified = monaco.editor.createModel(initialRight, 'json');
+      const original = monaco.editor.createModel(initialLeftRef.current, 'json');
+      const modified = monaco.editor.createModel(initialRightRef.current, 'json');
       // `tabSize` is a model-level option (not a diff-editor construction
       // option), so it is set here on each document model.
       original.updateOptions({ tabSize: 2 });
@@ -375,6 +458,10 @@ export function DiffPanel({
 
       // Seed banners for the initial content.
       evaluate();
+
+      // Apply the current Sync Scroll choice to the freshly-created editor
+      // (default is synced; only acts if the user has already turned it off).
+      setDiffScrollSync(editor, syncScrollRef.current);
 
       // Follow live app theme toggles: re-apply the matching diff theme when
       // the user flips dark mode while the diff editor is mounted.
@@ -422,6 +509,58 @@ export function DiffPanel({
     return () => cancelAnimationFrame(raf);
   }, [viewMode]);
 
+  // Apply the Sync Scroll toggle to the live editor: when off, the two panes
+  // scroll independently; when on, Monaco's native synchronized scrolling is
+  // restored (Req: independent vs. synced comparison panes).
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    setDiffScrollSync(editor, syncScroll);
+  }, [syncScroll]);
+
+  // Fullscreen side effects: while expanded, lock page scroll so only the diff
+  // scrolls, and let Escape collapse it. Monaco's `automaticLayout` repaints to
+  // the new size via its ResizeObserver, but the container's box changes in the
+  // same frame as the class swap, so we also force a relayout on the next frame
+  // to avoid a one-frame blank/stale paint when entering or exiting fullscreen.
+  useEffect(() => {
+    if (!isFullscreen) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsFullscreen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isFullscreen]);
+
+  // Force a relayout on the next frame whenever the fullscreen state flips, so
+  // the diff editor paints at the new size immediately (see note above).
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => editorRef.current?.layout());
+    return () => cancelAnimationFrame(raf);
+  }, [isFullscreen]);
+
+  // Keep the live Monaco models in sync with externally-driven text changes
+  // (e.g. the Left/Right buffers restored from storage after a page refresh, or
+  // seeded by the parent). Guarded by a value comparison so our own edits — the
+  // parent echoes them straight back as new props — never trigger a redundant
+  // `setValue` (which would reset the cursor/undo stack or loop).
+  useEffect(() => {
+    const model = originalModelRef.current;
+    if (model && model.getValue() !== initialLeft) model.setValue(initialLeft);
+  }, [initialLeft]);
+  useEffect(() => {
+    const model = modifiedModelRef.current;
+    if (model && model.getValue() !== initialRight) model.setValue(initialRight);
+  }, [initialRight]);
+
   // Format (beautify / indent) both documents in place using the shared
   // indentation setting. Each side is parsed and re-serialized; an empty or
   // invalid side is left untouched. Setting the model value triggers the normal
@@ -443,12 +582,57 @@ export function DiffPanel({
   // count when the documents differ, or "No differences found" when identical.
   const showCountBanner = differenceCount !== null && errors.length === 0;
 
+  // Show the Sync Scroll toggle only once the documents actually differ; hide
+  // it entirely otherwise (identical documents ⇒ nothing to scroll-compare).
+  const showSyncScroll = differenceCount !== null && differenceCount > 0;
+  // Within the side-by-side comparison it is actionable; in unified view there
+  // is a single pane, so the control is shown but disabled with a hint.
+  const syncScrollControlDisabled = viewMode === 'unified';
+  const syncScrollTitle =
+    viewMode === 'unified'
+      ? 'Switch to “Side by side” to scroll the two panes'
+      : syncScroll
+        ? 'Panes scroll together — uncheck to scroll independently'
+        : 'Panes scroll independently — check to scroll together';
+
   return (
-    <div class="flex h-full flex-col bg-canvas" data-component="diff-panel">
+    <div
+      class={`flex flex-col bg-canvas ${
+        isFullscreen ? 'fixed inset-0 z-50 h-[100dvh] w-screen' : 'h-full'
+      }`}
+      data-component="diff-panel"
+      data-fullscreen={isFullscreen ? 'true' : undefined}
+    >
       {/* ── Toolbar: view toggle (Req 9.1 / 9.2) ───────────────────────────── */}
       <div class="flex flex-wrap items-center justify-between gap-2 border-b border-hairline px-3 py-2 sm:gap-4 sm:px-4">
         <span class="font-sans text-body-sm-strong text-ink">Diff Checker</span>
         <div class="flex items-center gap-2">
+          {/* Sync Scroll toggle — shown only once the documents differ. It
+              applies to the side-by-side layout (two panes): when on, the panes
+              scroll together; when off, each scrolls independently. */}
+          {showSyncScroll && (
+            <label
+              class={`inline-flex select-none items-center gap-2 font-sans text-button-md ${
+                syncScrollControlDisabled
+                  ? 'cursor-not-allowed text-mute'
+                  : 'cursor-pointer text-body'
+              }`}
+              title={syncScrollTitle}
+              data-control="sync-scroll"
+            >
+              <input
+                type="checkbox"
+                class="h-4 w-4 cursor-pointer rounded border-hairline accent-link focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-link/50 disabled:cursor-not-allowed"
+                checked={syncScroll}
+                disabled={syncScrollControlDisabled}
+                aria-label="Sync Scroll"
+                onChange={(event) =>
+                  setSyncScroll((event.currentTarget as HTMLInputElement).checked)
+                }
+              />
+              Sync Scroll
+            </label>
+          )}
           {/* Format both documents (beautify / indent) with one click. */}
           <button
             type="button"
@@ -483,6 +667,47 @@ export function DiffPanel({
               Unified
             </button>
           </div>
+          {/* Fullscreen / expand toggle — grows the diff editor to fill the
+              whole viewport (Escape or click again to exit). */}
+          <button
+            type="button"
+            class="inline-flex items-center justify-center rounded-md p-1.5 text-body transition-colors cursor-pointer hover:bg-canvas-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-link/50"
+            data-action="toggle-fullscreen"
+            aria-pressed={isFullscreen}
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+            onClick={() => setIsFullscreen((value) => !value)}
+          >
+            {isFullscreen ? (
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M2 6h4V2M14 6h-4V2M2 10h4v4M14 10h-4v4" />
+              </svg>
+            ) : (
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M6 2H2v4M10 2h4v4M6 14H2v-4M10 14h4v-4" />
+              </svg>
+            )}
+          </button>
         </div>
       </div>
 

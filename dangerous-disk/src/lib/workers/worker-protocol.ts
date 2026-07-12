@@ -24,12 +24,13 @@
  * the shared core layer (parsing, semantic diff, RFC 6902 patch generation,
  * three-way merge, format conversion, code generation, expression querying).
  *
- * Matches design.md's worker strategy: `op ∈ parse | validate | diff | patch |
- * merge | convert | codegen | query`.
+ * Matches design.md's worker strategy: `op ∈ parse | validate | fix | diff |
+ * patch | merge | convert | codegen | query`.
  */
 export type WorkerOp =
   | 'parse'
   | 'validate'
+  | 'fix'
   | 'diff'
   | 'patch'
   | 'merge'

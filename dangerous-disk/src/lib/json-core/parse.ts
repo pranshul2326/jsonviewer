@@ -155,9 +155,30 @@ function errorTypeName(code: number): string {
   return printed.length > 0 ? printed : 'SyntaxError';
 }
 
-/** Turn a PascalCase error name into a readable phrase. */
+/**
+ * The literal token a `jsonc-parser` "…Expected" error refers to. Used to make
+ * the human-readable message explicit about which character is missing, e.g.
+ * "Close Brace '}' Expected" rather than just "Close Brace Expected".
+ */
+const EXPECTED_SYMBOL_BY_TYPE: Record<string, string> = {
+  CloseBraceExpected: '}',
+  CloseBracketExpected: ']',
+  ColonExpected: ':',
+  CommaExpected: ',',
+};
+
+/**
+ * Turn a PascalCase error name into a readable phrase, inserting the literal
+ * token for punctuation-expectation errors (e.g. `CloseBraceExpected` →
+ * "Close Brace '}' Expected", `CommaExpected` → "Comma ',' Expected").
+ */
 function humanizeType(type: string): string {
-  return type.replace(/([a-z])([A-Z])/g, '$1 $2');
+  const spaced = type.replace(/([a-z])([A-Z])/g, '$1 $2');
+  const symbol = EXPECTED_SYMBOL_BY_TYPE[type];
+  if (symbol && spaced.endsWith(' Expected')) {
+    return spaced.replace(/ Expected$/, ` '${symbol}' Expected`);
+  }
+  return spaced;
 }
 
 /**

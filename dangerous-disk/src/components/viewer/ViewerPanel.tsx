@@ -33,6 +33,9 @@ import { useStore } from '@nanostores/preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { $document, $settings, setDocumentText } from '../../lib/stores/document';
 import { format, minify } from '../../lib/json-core/serialize';
+import { smartFix, type FixSummary, type FixResult } from '../../lib/json-core/fixer';
+import { isLargeDocument } from '../../lib/workers/large-document';
+import { JobCancelledError, WorkerClient } from '../../lib/workers/worker-client';
 import type { JsonNode } from '../../lib/json-core/types';
 import type { ParseResult } from '../../lib/json-core/parse';
 import { EditorPane } from '../app/EditorPane';
@@ -93,6 +96,50 @@ function EmptyDocument() {
     </div>
   );
 }
+
+/**
+ * Build a human-readable, comma-separated summary of the corrections a Smart
+ * Fix pass applied (e.g. "2 trailing commas, 1 unquoted key"). Categories with
+ * a zero count are omitted; the caller only renders this when at least one
+ * correction was made.
+ */
+function describeFixSummary(summary: FixSummary): string {
+  const parts: string[] = [];
+  if (summary.trailingCommas > 0) {
+    parts.push(
+      `${summary.trailingCommas} trailing comma${summary.trailingCommas === 1 ? '' : 's'}`,
+    );
+  }
+  if (summary.unquotedKeys > 0) {
+    parts.push(
+      `${summary.unquotedKeys} unquoted key${summary.unquotedKeys === 1 ? '' : 's'}`,
+    );
+  }
+  if (summary.singleQuotes > 0) {
+    parts.push(
+      `${summary.singleQuotes} single-quoted string${summary.singleQuotes === 1 ? '' : 's'}`,
+    );
+  }
+  return parts.join(', ');
+}
+
+/**
+ * The transient feedback shown after a Smart Fix activation:
+ *   - `working`   — a Large_Document fix is running in the worker (off the main
+ *                   thread); the control is disabled until it resolves.
+ *   - `fixed`     — corrections were applied; `detail` summarizes them.
+ *   - `clean`     — the document was already valid, nothing to correct.
+ *   - `unfixable` — the remaining error could not be auto-corrected; carries the
+ *                   first error's 1-based line/column so the user can find it.
+ *   - `failed`    — the worker run failed unexpectedly.
+ */
+type FixFeedback =
+  | null
+  | { kind: 'working' }
+  | { kind: 'fixed'; detail: string }
+  | { kind: 'clean' }
+  | { kind: 'unfixable'; line: number; column: number }
+  | { kind: 'failed' };
 
 /** Props for {@link ViewerPanel}. */
 export interface ViewerPanelProps {
@@ -179,6 +226,122 @@ export default function ViewerPanel({ progress, progressLabel, compact = false }
   const onMinify = useCallback(() => {
     if (model) setDocumentText(minify(doc.text));
   }, [model, doc.text]);
+
+  // ── Smart Fix (Req 7) ─────────────────────────────────────────────────────
+  // Transient feedback from the last Smart Fix activation, auto-dismissed after
+  // a short delay so the toolbar does not accumulate stale messages.
+  const [fixFeedback, setFixFeedback] = useState<FixFeedback>(null);
+  const fixTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Lazily-created worker client used only to repair Large_Documents off the
+  // main thread (mirrors EditorPane's parse client). Small documents never
+  // construct it. Disposed on unmount.
+  const fixClientRef = useRef<WorkerClient | null>(null);
+
+  /** Show `next` as fix feedback and auto-clear it after a few seconds. */
+  const flashFixFeedback = useCallback((next: FixFeedback) => {
+    setFixFeedback(next);
+    if (fixTimerRef.current !== null) clearTimeout(fixTimerRef.current);
+    fixTimerRef.current = setTimeout(() => {
+      setFixFeedback(null);
+      fixTimerRef.current = null;
+    }, 6000);
+  }, []);
+
+  // Cancel any pending auto-dismiss timer and tear down the fix worker on
+  // unmount.
+  useEffect(
+    () => () => {
+      if (fixTimerRef.current !== null) clearTimeout(fixTimerRef.current);
+      fixClientRef.current?.dispose(true);
+      fixClientRef.current = null;
+    },
+    [],
+  );
+
+  /**
+   * Apply a `smartFix` outcome (from the main thread or the worker): replace the
+   * editor text when corrections were made and summarize them, or report
+   * "already valid" / the first remaining error's location (Req 7.6/7.7).
+   */
+  const applyFixResult = useCallback(
+    (result: FixResult) => {
+      if (!result.ok) {
+        flashFixFeedback({
+          kind: 'unfixable',
+          line: result.line,
+          column: result.column,
+        });
+        return;
+      }
+      const total =
+        result.summary.trailingCommas +
+        result.summary.unquotedKeys +
+        result.summary.singleQuotes;
+      if (total === 0) {
+        // Already valid (or nothing correctable): leave the text untouched.
+        flashFixFeedback({ kind: 'clean' });
+        return;
+      }
+      setDocumentText(result.text);
+      flashFixFeedback({
+        kind: 'fixed',
+        detail: describeFixSummary(result.summary),
+      });
+    },
+    [flashFixFeedback],
+  );
+
+  /**
+   * Repair the three mechanically-correctable JSON mistakes (trailing commas,
+   * unquoted keys, single-quoted strings) in one pass (Req 7).
+   *
+   * Small documents are fixed synchronously on the main thread for instant
+   * feedback. A Large_Document (≥5 MB) is dispatched to `parse.worker.ts` so the
+   * single string pass runs off the main thread and never blocks the UI; the
+   * `key: 'fix'` supersedes any earlier in-flight fix so rapid clicks don't
+   * queue stale work.
+   */
+  const onFix = useCallback(() => {
+    const text = doc.text;
+
+    // Small document: fix inline, exactly as before.
+    if (!isLargeDocument(text)) {
+      applyFixResult(smartFix(text));
+      return;
+    }
+
+    // Large document: offload to the worker, keeping the main thread free.
+    if (!fixClientRef.current) {
+      const worker = new Worker(
+        new URL('../../lib/workers/parse.worker.ts', import.meta.url),
+        { type: 'module' },
+      );
+      fixClientRef.current = new WorkerClient(worker);
+    }
+
+    // Persistent "working" state (no auto-dismiss) while the worker runs; it is
+    // replaced by the terminal feedback below.
+    if (fixTimerRef.current !== null) {
+      clearTimeout(fixTimerRef.current);
+      fixTimerRef.current = null;
+    }
+    setFixFeedback({ kind: 'working' });
+
+    fixClientRef.current
+      .run<FixResult, { text: string }>('fix', { text }, { key: 'fix' })
+      .then((result) => applyFixResult(result))
+      .catch((error: unknown) => {
+        // A superseded fix (newer click) is expected; ignore it silently.
+        if (error instanceof JobCancelledError) return;
+        flashFixFeedback({ kind: 'failed' });
+      });
+  }, [doc.text, applyFixResult, flashFixFeedback]);
+
+  // The document is empty/whitespace-only when it parses as valid-empty; Smart
+  // Fix has nothing to act on then. It is also disabled while a worker fix is in
+  // flight so a second click can't race the first.
+  const isEmptyDoc = parsed.ok && parsed.empty;
+  const isFixing = fixFeedback?.kind === 'working';
 
   // ── Resizable editor/tree split ──────────────────────────────────────────
   // The middle divider is draggable so the user can size the editor (left) and
@@ -279,7 +442,7 @@ export default function ViewerPanel({ progress, progressLabel, compact = false }
           class={`flex h-[45vh] min-w-0 flex-col border-b border-hairline ${paneHeightClass} md:border-b-0`}
           style={isWide ? { flex: `0 0 ${leftPct}%` } : undefined}
         >
-          <div class="flex items-center gap-xs border-b border-hairline px-sm py-xs">
+          <div class="flex flex-wrap items-center gap-xs border-b border-hairline px-sm py-xs">
             <button
               type="button"
               class="rounded-xs px-xs py-xxs text-button-md text-body ring-1 ring-inset ring-hairline hover:bg-canvas-soft disabled:cursor-not-allowed disabled:opacity-50"
@@ -298,6 +461,68 @@ export default function ViewerPanel({ progress, progressLabel, compact = false }
             >
               Minify
             </button>
+            <button
+              type="button"
+              data-testid="fix-button"
+              class="rounded-xs px-xs py-xxs text-button-md text-body ring-1 ring-inset ring-hairline hover:bg-canvas-soft disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={onFix}
+              disabled={isEmptyDoc || isFixing}
+              title="Smart Fix: repair trailing commas, unquoted keys and single-quoted strings"
+            >
+              {isFixing ? 'Fixing…' : 'Fix'}
+            </button>
+
+            {/* Transient Smart Fix feedback (Req 7.6/7.7), auto-dismissed. */}
+            {fixFeedback?.kind === 'working' ? (
+              <span
+                class="ml-xs text-caption text-mute"
+                role="status"
+                aria-live="polite"
+                data-testid="fix-status"
+              >
+                Fixing a large document…
+              </span>
+            ) : null}
+            {fixFeedback?.kind === 'fixed' ? (
+              <span
+                class="ml-xs min-w-0 truncate text-caption text-success"
+                role="status"
+                aria-live="polite"
+                data-testid="fix-status"
+                title={`Fixed ${fixFeedback.detail}`}
+              >
+                Fixed {fixFeedback.detail}
+              </span>
+            ) : null}
+            {fixFeedback?.kind === 'clean' ? (
+              <span
+                class="ml-xs text-caption text-mute"
+                role="status"
+                aria-live="polite"
+                data-testid="fix-status"
+              >
+                Already valid — nothing to fix
+              </span>
+            ) : null}
+            {fixFeedback?.kind === 'unfixable' ? (
+              <span
+                class="ml-xs min-w-0 truncate text-caption text-error"
+                role="alert"
+                data-testid="fix-status"
+                title={`Couldn't auto-fix — first remaining error at line ${fixFeedback.line}, column ${fixFeedback.column}`}
+              >
+                Couldn't auto-fix — line {fixFeedback.line}, column {fixFeedback.column}
+              </span>
+            ) : null}
+            {fixFeedback?.kind === 'failed' ? (
+              <span
+                class="ml-xs text-caption text-error"
+                role="alert"
+                data-testid="fix-status"
+              >
+                Fixing failed — please try again
+              </span>
+            ) : null}
           </div>
           <div class="min-h-0 flex-1 min-w-0 overflow-hidden">
             <EditorPane />
