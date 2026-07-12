@@ -22,7 +22,7 @@
 // (links) and values that fall outside every recognized space. Each property
 // runs at >= 100 iterations.
 
-import { describe } from 'vitest';
+import { describe, expect } from 'vitest';
 import { fc, test } from '@fast-check/vitest';
 import {
   classifyString,

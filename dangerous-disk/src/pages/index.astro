@@ -60,6 +60,9 @@ const keywords = [
   'jmespath',
   'online json tools',
   'json merge',
+  'text compare',
+  'text diff',
+  'compare text online',
 ].join(', ');
 
 // FAQ content — rendered both as a visible <details> accordion (below) and as
@@ -120,6 +123,10 @@ const faqs: { q: string; a: string }[] = [
   {
     q: 'How do I compare two JSON files?',
     a: '<p>Use the Diff Checker. Paste one document on each side and JSONLab runs a semantic comparison that ignores key order and formatting, so only real changes are highlighted. You can view differences side-by-side or unified, merge changes, and export a standard RFC 6902 JSON Patch.</p>',
+  },
+  {
+    q: 'How do I compare two blocks of text?',
+    a: '<p>Use the <a href="/text-compare">Text Compare</a> tool. Paste one block of text on each side and JSONLab highlights every added, removed and changed line side by side, so you can diff logs, config, prose or code snippets — not just JSON. Clickable arrows step you through each difference, and everything runs in your browser, so nothing is uploaded.</p>',
   },
   {
     q: 'Is JSONLab free, and is my data private?',
@@ -225,6 +232,19 @@ const faqs: { q: string; a: string }[] = [
           structs, TypeScript interfaces, Python dataclasses and Dart classes.
           For slicing large datasets, the built-in JSONPath and JMESPath query
           bar lets you filter and extract exactly what you want.
+        </p>
+
+        <h2>Compare plain text, not just JSON</h2>
+        <p>
+          Sometimes the two things you need to diff are not JSON at all. The
+          <strong><a href="/text-compare">Text Compare</a></strong> tool is a
+          dedicated <strong>text diff</strong> that lets you
+          <strong>compare text online</strong> line by line — paste two blocks of
+          plain text on the left and right and every added, removed and changed
+          line is highlighted side by side. It is ideal for logs, config files,
+          prose, SQL or code snippets, with clickable arrows to jump between
+          differences. Like every other tool here, it runs entirely in your
+          browser, so nothing is uploaded.
         </p>
 
         <h2>Why developers choose JSONLab</h2>

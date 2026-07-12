@@ -250,11 +250,88 @@ $diffBuffers.listen((value) => {
 });
 
 // ---------------------------------------------------------------------------
+// $textCompareBuffers — Text Compare Left/Right buffers (persisted)
+// ---------------------------------------------------------------------------
+
+/**
+ * The Text Compare tool's own Left/Right buffers. Mirrors {@link DiffBuffers}
+ * but for arbitrary plain text rather than JSON: there is no mode (compare is
+ * the only mode) and the contents are never parsed or validated. Like the Diff
+ * buffers, keeping these in a shared store preserves both pasted documents when
+ * the user switches tools and comes back (Req 21.5/21.6). The shared `$document`
+ * is never mutated; `left` is merely seeded from it on first entry.
+ */
+export interface TextCompareBuffers {
+  /** Left (original) text. */
+  left: string;
+  /** Right (modified) text. */
+  right: string;
+  /** Whether `left` has been seeded from the shared document yet (first entry). */
+  seeded: boolean;
+}
+
+/** The Text Compare buffers, retained for the lifetime of the session. */
+export const $textCompareBuffers = map<TextCompareBuffers>({
+  left: '',
+  right: '',
+  seeded: false,
+});
+
+// Persist the Text Compare buffers to localStorage so both documents survive a
+// page refresh. Client-only and never leaves the browser (privacy preserved),
+// guarded for SSR, and wrapped so blocked/full storage never breaks the app.
+const TEXT_COMPARE_BUFFERS_KEY = 'jvf:text-compare-buffers';
+const TEXT_COMPARE_PERSIST_MAX = 2_000_000; // ~2 MB combined; skip beyond this
+
+/** Guards the text-compare restore so it runs at most once per page load. */
+let textCompareBuffersRestored = false;
+
+/**
+ * Restore the Text Compare buffers from localStorage (client-only). Called from
+ * a mount effect (not at import time) so it runs after hydration, matching the
+ * Diff buffers restore discipline.
+ */
+export function restoreTextCompareBuffersFromStorage(): void {
+  if (textCompareBuffersRestored) return;
+  if (typeof localStorage === 'undefined') return;
+  textCompareBuffersRestored = true;
+  try {
+    const raw = localStorage.getItem(TEXT_COMPARE_BUFFERS_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw) as Partial<TextCompareBuffers>;
+    if (typeof saved.left === 'string' && typeof saved.right === 'string') {
+      $textCompareBuffers.set({
+        left: saved.left,
+        right: saved.right,
+        // Restored buffers count as already seeded, so the tool keeps them
+        // instead of overwriting Left from the shared document.
+        seeded: true,
+      });
+    }
+  } catch {
+    /* ignore corrupt or blocked storage */
+  }
+}
+
+$textCompareBuffers.listen((value) => {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    if (value.left.length + value.right.length > TEXT_COMPARE_PERSIST_MAX) {
+      localStorage.removeItem(TEXT_COMPARE_BUFFERS_KEY);
+      return;
+    }
+    localStorage.setItem(TEXT_COMPARE_BUFFERS_KEY, JSON.stringify(value));
+  } catch {
+    /* ignore quota errors or blocked storage */
+  }
+});
+
+// ---------------------------------------------------------------------------
 // $activeTool — which tool is active
 // ---------------------------------------------------------------------------
 
-/** The four primary tools, matching the navigation entries (Req 21.1). */
-export type Tool = 'viewer' | 'diff' | 'grid' | 'converter';
+/** The five primary tools, matching the navigation entries (Req 21.1). */
+export type Tool = 'viewer' | 'diff' | 'grid' | 'converter' | 'text';
 
 /** The currently active tool. Defaults to the Viewer. */
 export const $activeTool = atom<Tool>('viewer');

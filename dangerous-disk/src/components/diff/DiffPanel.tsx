@@ -267,6 +267,9 @@ export function DiffPanel({
     // Lazily-created worker client used only to diff Large_Documents off the
     // main thread (Req 17.1). Small documents never construct it.
     let diffClient: WorkerClient | null = null;
+    // Handle for the in-flight "jump to next difference" scroll animation, so a
+    // new click cancels the previous animation and cleanup can stop it.
+    let scrollAnimationFrame: number | null = null;
 
     const getDiffClient = (): WorkerClient => {
       if (!diffClient) {
@@ -416,6 +419,12 @@ export function DiffPanel({
         readOnly: false, // Right pane editable too.
         automaticLayout: true,
         minimap: { enabled: false },
+        // Show the glyph margin so we can render our own clickable green/red
+        // "jump to next difference" arrows next to each changed line, and turn
+        // off Monaco's default per-change revert arrow (which would otherwise
+        // sit in the same spot and revert the change instead of navigating).
+        glyphMargin: true,
+        renderMarginRevertIcon: false,
         scrollBeyondLastLine: false,
         // Let the wheel chain to the page once the editor reaches a scroll end,
         // so long JSON can be scrolled through to the very bottom/top (matches
@@ -439,6 +448,126 @@ export function DiffPanel({
       originalModelRef.current = original;
       modifiedModelRef.current = modified;
       editorRef.current = editor;
+
+      // ── Clickable gutter arrows that jump to the next difference ───────────
+      // How many lines of context to keep above the target (so the difference
+      // lands on the 4th visible line) and how long the scroll animation takes
+      // (a longer duration reads as a slower glide). Shared behavior with the
+      // Text Compare tool.
+      const LINES_ABOVE_TARGET = 3;
+      const SCROLL_DURATION_MS = 650;
+      const modifiedEditor = editor.getModifiedEditor();
+      // One arrow glyph per change, keyed on the modified-side start line.
+      const glyphs = modifiedEditor.createDecorationsCollection([]);
+
+      /**
+       * Set the modified pane's scroll offset, bypassing the Sync-Scroll shim.
+       * When Sync Scroll is OFF, `setScrollTop` is shadowed with a no-op on the
+       * pane (see {@link setDiffScrollSync}); the native setter is saved under a
+       * private key, so we call that when present. When Sync Scroll is ON the
+       * setter is native and Monaco mirrors the scroll to the other pane.
+       */
+      const setPaneScrollTop = (pane: ScrollPatchablePane, top: number) => {
+        const native = pane.__jvfSetScrollTop ?? pane.setScrollTop.bind(pane);
+        native(top);
+      };
+
+      /**
+       * Animate the modified pane from its current scroll offset to `to` over
+       * SCROLL_DURATION_MS with an ease-in-out curve, so jumping to the next
+       * difference is a slow, followable glide rather than an instant snap.
+       */
+      const animateScrollTo = (pane: ScrollPatchablePane, to: number) => {
+        const from = pane.getScrollTop();
+        const distance = to - from;
+        if (scrollAnimationFrame !== null) cancelAnimationFrame(scrollAnimationFrame);
+        if (Math.abs(distance) < 1) {
+          setPaneScrollTop(pane, to);
+          return;
+        }
+        const start = performance.now();
+        const step = (now: number) => {
+          const t = Math.min(1, (now - start) / SCROLL_DURATION_MS);
+          const eased = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2; // easeInOutQuad
+          setPaneScrollTop(pane, from + distance * eased);
+          if (t < 1 && !disposed) {
+            scrollAnimationFrame = requestAnimationFrame(step);
+          } else {
+            scrollAnimationFrame = null;
+          }
+        };
+        scrollAnimationFrame = requestAnimationFrame(step);
+      };
+
+      // Refresh the arrow glyphs whenever Monaco recomputes the line diff.
+      subscriptions.push(
+        editor.onDidUpdateDiff(() => {
+          if (disposed || !editor || !monaco) return;
+          const changes = editor.getLineChanges() ?? [];
+          const decorations = changes.map((change) => {
+            // A pure deletion has no lines on the modified side; anchor its
+            // marker at the line the removed content sat before. Additions and
+            // modifications anchor at their first modified line.
+            const isDeletion = change.modifiedEndLineNumber === 0;
+            const line = Math.max(1, change.modifiedStartLineNumber);
+            return {
+              range: new monaco!.Range(line, 1, line, 1),
+              options: {
+                glyphMarginClassName: `jvf-diff-arrow ${
+                  isDeletion ? 'jvf-diff-arrow-del' : 'jvf-diff-arrow-add'
+                }`,
+                glyphMarginHoverMessage: { value: 'Go to next difference' },
+                stickiness:
+                  monaco!.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+              },
+            };
+          });
+          // When at least one difference exists, always show a green arrow on
+          // line 1 as a default entry point for stepping through the changes —
+          // unless a change already sits on line 1 (which would double it up).
+          if (
+            decorations.length > 0 &&
+            !decorations.some((d) => d.range.startLineNumber === 1)
+          ) {
+            decorations.unshift({
+              range: new monaco!.Range(1, 1, 1, 1),
+              options: {
+                glyphMarginClassName: 'jvf-diff-arrow jvf-diff-arrow-add',
+                glyphMarginHoverMessage: { value: 'Go to first difference' },
+                stickiness:
+                  monaco!.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+              },
+            });
+          }
+          glyphs.set(decorations);
+        }),
+      );
+
+      // Clicking an arrow glyph jumps to the NEXT difference and slowly scrolls
+      // it to a fixed spot near the top of the viewport (the 4th line).
+      subscriptions.push(
+        modifiedEditor.onMouseDown((event) => {
+          if (
+            !monaco ||
+            event.target.type !== monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN
+          ) {
+            return;
+          }
+          const clickedLine = event.target.position?.lineNumber ?? 0;
+          const changes = editorRef.current?.getLineChanges() ?? [];
+          const lines = changes
+            .map((change) => Math.max(1, change.modifiedStartLineNumber))
+            .sort((a, b) => a - b);
+          if (lines.length === 0) return;
+          const target = lines.find((line) => line > clickedLine) ?? lines[0];
+          const modEd = editorRef.current?.getModifiedEditor() as ScrollPatchablePane;
+          if (!modEd) return;
+          modEd.setPosition({ lineNumber: target, column: 1 });
+          const topLine = Math.max(1, target - LINES_ABOVE_TARGET);
+          animateScrollTo(modEd, modEd.getTopForLineNumber(topLine));
+          modEd.focus();
+        }),
+      );
 
       // Re-evaluate whenever either document changes, and surface the new text
       // to a composing parent (Diff Checker tool) so the semantic list and
@@ -473,6 +602,7 @@ export function DiffPanel({
     return () => {
       disposed = true;
       clearDebounce();
+      if (scrollAnimationFrame !== null) cancelAnimationFrame(scrollAnimationFrame);
       for (const sub of subscriptions) sub.dispose();
       unsubscribeTheme?.();
       diffClient?.dispose(true);

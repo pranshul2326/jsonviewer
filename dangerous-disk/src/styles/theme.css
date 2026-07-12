@@ -239,6 +239,21 @@ html.dark {
   --shadow-level-5: 0px 1px 1px #00000033, 0px 8px 16px -4px #00000040, 0px 24px 32px -8px #0000004d, inset 0 0 0 1px #ffffff14;
 }
 
+/* ─── Diff Checker: disable horizontal swipe-back navigation ───────────────
+   The Diff Checker mounts Monaco diff panes with `alwaysConsumeMouseWheel:
+   false`, so an unconsumed horizontal two-finger swipe (once a pane reaches its
+   horizontal scroll edge) chains up to the page. Because the page cannot scroll
+   horizontally, the browser interprets the overscroll as its back/forward
+   navigation gesture and leaves the app mid-scroll. Containing horizontal
+   overscroll at the viewport root stops that gesture without affecting vertical
+   scrolling or the browser's own Back button. The class is added to <html> only
+   while the Diff tool is mounted (see DiffTool.tsx), so swipe-back still works
+   everywhere else. */
+html.jvf-contain-overscroll-x,
+html.jvf-contain-overscroll-x body {
+  overscroll-behavior-x: contain;
+}
+
 /* ─── Editor fold-control glyphs ──────────────────────────────────────────
    Replace Monaco's default codicon fold chevrons (⌄ / ›) with the simple
    triangles ▾ / ▸ in the editor gutter. The codicon icon font has no triangle
@@ -255,4 +270,32 @@ html.dark {
   font-family: var(--font-sans), "Segoe UI Symbol", sans-serif !important;
   font-size: 16px !important;
   line-height: inherit;
+}
+
+/* ─── Text Compare: clickable "jump to next difference" gutter arrows ──────
+   The Text Compare tool renders one glyph-margin decoration at the first line
+   of every change (see TextComparePanel.tsx). Each glyph is a large downward
+   arrow — green for added/modified lines, red for deletions — and clicking it
+   advances the diff editor to the next difference. Scoped by the `jvf-diff-arrow`
+   class, which is only applied on the Text Compare editor. */
+.monaco-editor .jvf-diff-arrow {
+  cursor: pointer;
+}
+.monaco-editor .jvf-diff-arrow::before {
+  content: "\2193"; /* ↓ downwards arrow — "go to next difference" */
+  display: block;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 20px;
+  transition: transform 0.1s ease;
+}
+.monaco-editor .jvf-diff-arrow:hover::before {
+  transform: scale(1.2);
+}
+.monaco-editor .jvf-diff-arrow-add::before {
+  color: var(--color-cyan-deep); /* green — added / modified content */
+}
+.monaco-editor .jvf-diff-arrow-del::before {
+  color: var(--color-error); /* red — removed content */
 }

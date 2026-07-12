@@ -53,7 +53,7 @@ const RIGHT = '{"a":2}';
 
 describe('PatchExport copy confirmation (Req 10.5)', () => {
   it('shows the confirmation indication after a successful clipboard write', async () => {
-    const writeClipboard = vi.fn(() => Promise.resolve());
+    const writeClipboard = vi.fn((_text: string) => Promise.resolve());
     render(
       <PatchExport left={LEFT} right={RIGHT} writeClipboard={writeClipboard} />,
       container,

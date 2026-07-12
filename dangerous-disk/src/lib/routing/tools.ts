@@ -104,6 +104,20 @@ export const TOOL_ROUTES: readonly ToolRoute[] = [
     intro:
       'Convert JSON to CSV, YAML, XML and TOML, generate strongly-typed code for TypeScript, Java, Go, Python and Dart, and slice large datasets with JSONPath and JMESPath queries — all client-side.',
   },
+  {
+    tool: 'text',
+    path: '/text-compare',
+    label: 'Text Compare',
+    navBrand: 'Text Compare & Diff',
+    title: 'Text Compare & Diff Tool — Find Differences | JSONLab',
+    description:
+      'Free online text compare and diff tool. Paste two blocks of plain text and see every added, removed and changed line side by side — 100% in your browser, nothing uploaded.',
+    keywords:
+      'text compare, text diff, compare text, diff tool, text difference, compare two texts, online diff, find differences, side by side text compare',
+    heading: 'Text Compare & Diff',
+    intro:
+      'Compare two blocks of plain text and instantly see every added, removed and changed line highlighted side by side. Ideal for logs, config, prose or code snippets — everything runs locally in your browser, so your text never leaves your machine.',
+  },
 ] as const;
 
 /** Lookup a route by tool id. */

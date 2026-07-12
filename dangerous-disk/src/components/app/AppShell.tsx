@@ -50,13 +50,14 @@ import ViewerPanel from '../viewer/ViewerPanel';
 import DiffTool from '../diff/DiffTool';
 import GridPanel from '../grid/GridPanel';
 import ConverterTool from '../convert/ConverterTool';
+import TextCompareTool from '../text/TextCompareTool';
 
 // ---------------------------------------------------------------------------
 // Tool registry
 // ---------------------------------------------------------------------------
 
-/** The four tools in display order, the single source of truth for routing. */
-const TOOLS: readonly Tool[] = ['viewer', 'diff', 'grid', 'converter'] as const;
+/** The tools in display order, the single source of truth for routing. */
+const TOOLS: readonly Tool[] = ['viewer', 'diff', 'grid', 'converter', 'text'] as const;
 
 /** Narrow an arbitrary string to a {@link Tool}. */
 function isTool(value: string | null | undefined): value is Tool {
@@ -263,6 +264,7 @@ function ShareControl({ onShare, feedback }: ShareControlProps) {
 //                 three-way merge).
 //   • grid      → GridPanel (virtualized searchable/filterable/sortable table).
 //   • converter → ConverterTool (format converters + code generation + query).
+//   • text      → TextCompareTool (Monaco diff editor over plain-text models).
 //
 // The Monaco-based panels (Viewer's EditorPane, DiffTool's DiffPanel) import
 // Monaco client-only inside effects guarded on `window`, so nothing Monaco runs
@@ -284,6 +286,7 @@ const PANELS: Record<Tool, ComponentType> = {
   diff: () => <DiffTool />,
   grid: () => <GridPanel />,
   converter: () => <ConverterTool />,
+  text: () => <TextCompareTool />,
 };
 
 // ---------------------------------------------------------------------------
@@ -520,8 +523,8 @@ export default function AppShell({
   // below it visible); every other panel is rendered with no props.
   const activePanelElement =
     activeTool === 'viewer' ? <ViewerPanel compact={compact} /> : <ActivePanel />;
-  // Tool-card height. Grid and Converter fill a fixed, viewport-tall card at
-  // every breakpoint so their virtualization has a bounded scroll area. The
+  // Tool-card height. Grid, Converter and Text Compare fill a fixed, viewport-
+  // tall card at every breakpoint so their content has a bounded scroll area. The
   // Viewer matches that exact card height on desktop — so all tool cards are the
   // same size — while keeping its mobile behavior of growing with content (the
   // page scrolls), and its compact homepage embed (which must leave the SEO/FAQ
@@ -529,7 +532,7 @@ export default function AppShell({
   // grow: its Compare mode stacks the semantic-diff list and patch export below
   // a tall editor, which must scroll the page rather than be clipped.
   const cardHeightClass =
-    activeTool === 'grid' || activeTool === 'converter'
+    activeTool === 'grid' || activeTool === 'converter' || activeTool === 'text'
       ? 'h-[calc(100dvh-6rem)] min-h-0'
       : activeTool === 'viewer' && !compact
         ? 'md:h-[calc(100dvh-6rem)] md:min-h-0'

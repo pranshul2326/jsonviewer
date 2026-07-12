@@ -1,3 +1,4 @@
+/** @jsxImportSource preact */
 // Feature: json-viewer-free
 //
 // RichMedia presentation component (Req 12.1, 12.2, 12.5, 12.6).

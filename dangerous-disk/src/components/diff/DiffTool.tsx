@@ -66,6 +66,17 @@ export default function DiffTool() {
     }
   }, []);
 
+  // Contain horizontal overscroll while the Diff tool is mounted so a two-finger
+  // swipe inside the Monaco diff panes never triggers the browser's back/forward
+  // navigation gesture. Scoped to <html> here (rather than globally) so ordinary
+  // swipe-back keeps working on every other tool/page. Removed on unmount.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const CLASS = 'jvf-contain-overscroll-x';
+    document.documentElement.classList.add(CLASS);
+    return () => document.documentElement.classList.remove(CLASS);
+  }, []);
+
   const { left: leftText, right: rightText, mode } = useStore($diffBuffers);
 
   // Total structural differences, surfaced by the semantic diff list so it can
