@@ -93,6 +93,20 @@ export interface DiffPanelProps {
   onLeftChange?: (text: string) => void;
   /** Called with the Right (modified) text whenever it changes in the editor. */
   onRightChange?: (text: string) => void;
+  /** Optional label for the Left document, shown as an editable field in the banner. */
+  leftName?: string;
+  /** Optional label for the Right document, shown as an editable field in the banner. */
+  rightName?: string;
+  /** Called with the new Left label when the user edits the left file-name field. */
+  onLeftNameChange?: (name: string) => void;
+  /** Called with the new Right label when the user edits the right file-name field. */
+  onRightNameChange?: (name: string) => void;
+  /**
+   * Clear both documents (and their labels). When provided, a "Clear" button is
+   * shown in the toolbar. The composing parent owns the reset so the shared
+   * buffers and persisted storage are wiped in one place.
+   */
+  onClear?: () => void;
   /**
    * Total number of structural differences between the two documents, used to
    * render the centered status banner ("N differences found" / "No differences
@@ -115,6 +129,16 @@ const TOGGLE_BASE =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-link/50';
 const TOGGLE_ACTIVE = 'bg-canvas text-ink shadow-level-1';
 const TOGGLE_INACTIVE = 'text-body hover:text-ink';
+
+/**
+ * Shared classes for the editable Left/Right file-name fields in the banner.
+ * A borderless field that reveals a hairline ring on hover and a link ring on
+ * focus, so it reads as a quiet label until the user interacts with it.
+ */
+const NAME_FIELD_BASE =
+  'min-w-0 rounded-sm bg-transparent px-2 py-0.5 font-sans text-body-sm text-ink ' +
+  'placeholder:text-mute ring-1 ring-inset ring-transparent transition-colors ' +
+  'hover:ring-hairline focus:outline-none focus:ring-2 focus:ring-link/50';
 
 /**
  * An inner diff pane whose scroll-position setters we may have shadowed to
@@ -191,6 +215,11 @@ export function DiffPanel({
   initialRight = '',
   onLeftChange,
   onRightChange,
+  leftName = '',
+  rightName = '',
+  onLeftNameChange,
+  onRightNameChange,
+  onClear,
   differenceCount = null,
 }: DiffPanelProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -239,6 +268,12 @@ export function DiffPanel({
   // 17.3) and the reason when one fails (Req 17.5, prior diff retained).
   const [workerProgress, setWorkerProgress] = useState<number | null>(null);
   const [workerError, setWorkerError] = useState<string | null>(null);
+  // Flips true once the Monaco models exist. The external-sync effects below
+  // depend on it so buffers restored from storage *before* Monaco finished
+  // loading (a page refresh) are still pushed into the editors once they mount —
+  // without it, the [initialLeft]/[initialRight] effects had already run against
+  // null models and never re-ran, leaving the restored text invisible.
+  const [modelsReady, setModelsReady] = useState(false);
 
   // ── Monaco handles (populated by the async client-only setup) ──────────────
   const editorRef = useRef<Monaco.editor.IStandaloneDiffEditor | null>(null);
@@ -432,6 +467,12 @@ export function DiffPanel({
         scrollbar: { alwaysConsumeMouseWheel: false },
         renderOverviewRuler: false,
         ignoreTrimWhitespace: false,
+        // Wrap long lines instead of scrolling them sideways. Without a
+        // horizontal scrollbar Monaco reserves no scrollbar band at the bottom
+        // of the scroll area, so the final line (e.g. the closing `}`) sits
+        // flush against the pane's bottom edge, and long JSON values stay fully
+        // visible. Matches the Text Compare tool's editor.
+        wordWrap: 'on',
         fontFamily:
           '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, monospace',
         fontSize: 13,
@@ -448,6 +489,9 @@ export function DiffPanel({
       originalModelRef.current = original;
       modifiedModelRef.current = modified;
       editorRef.current = editor;
+      // Signal that the models exist so the external-sync effects reconcile the
+      // editors against the latest (possibly just-restored) buffers.
+      setModelsReady(true);
 
       // ── Clickable gutter arrows that jump to the next difference ───────────
       // How many lines of context to keep above the target (so the difference
@@ -539,6 +583,27 @@ export function DiffPanel({
               },
             });
           }
+          // Mirror that with a green UP arrow on the LAST line that jumps back
+          // to the very top of the document — unless a change already sits on
+          // the last line, or the document is a single line (which would
+          // collide with the line-1 arrow above).
+          const lastLine = modifiedEditor.getModel()?.getLineCount() ?? 1;
+          if (
+            decorations.length > 0 &&
+            lastLine > 1 &&
+            !decorations.some((d) => d.range.startLineNumber === lastLine)
+          ) {
+            decorations.push({
+              range: new monaco!.Range(lastLine, 1, lastLine, 1),
+              options: {
+                glyphMarginClassName:
+                  'jvf-diff-arrow jvf-diff-arrow-add jvf-diff-arrow-up',
+                glyphMarginHoverMessage: { value: 'Scroll to top' },
+                stickiness:
+                  monaco!.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+              },
+            });
+          }
           glyphs.set(decorations);
         }),
       );
@@ -554,14 +619,29 @@ export function DiffPanel({
             return;
           }
           const clickedLine = event.target.position?.lineNumber ?? 0;
+          // The bottom entry-point glyph is an UP arrow that jumps back to the
+          // top of the document; every other arrow steps to the NEXT (nearest
+          // below) difference. Read the direction off the clicked glyph's class.
+          const goUp = !!(
+            event.target.element as HTMLElement | null
+          )?.closest?.('.jvf-diff-arrow-up');
+          const modEd = editorRef.current?.getModifiedEditor() as ScrollPatchablePane;
+          if (!modEd) return;
+          // Up arrow: glide to the very top of the document (line 1).
+          if (goUp) {
+            modEd.setPosition({ lineNumber: 1, column: 1 });
+            animateScrollTo(modEd, 0);
+            modEd.focus();
+            return;
+          }
+          // Down arrows: jump to the next difference below the clicked arrow,
+          // wrapping to the first, and glide it to the 4th visible line.
           const changes = editorRef.current?.getLineChanges() ?? [];
           const lines = changes
             .map((change) => Math.max(1, change.modifiedStartLineNumber))
             .sort((a, b) => a - b);
           if (lines.length === 0) return;
           const target = lines.find((line) => line > clickedLine) ?? lines[0];
-          const modEd = editorRef.current?.getModifiedEditor() as ScrollPatchablePane;
-          if (!modEd) return;
           modEd.setPosition({ lineNumber: target, column: 1 });
           const topLine = Math.max(1, target - LINES_ABOVE_TARGET);
           animateScrollTo(modEd, modEd.getTopForLineNumber(topLine));
@@ -685,11 +765,11 @@ export function DiffPanel({
   useEffect(() => {
     const model = originalModelRef.current;
     if (model && model.getValue() !== initialLeft) model.setValue(initialLeft);
-  }, [initialLeft]);
+  }, [initialLeft, modelsReady]);
   useEffect(() => {
     const model = modifiedModelRef.current;
     if (model && model.getValue() !== initialRight) model.setValue(initialRight);
-  }, [initialRight]);
+  }, [initialRight, modelsReady]);
 
   // Format (beautify / indent) both documents in place using the shared
   // indentation setting. Each side is parsed and re-serialized; an empty or
@@ -722,8 +802,8 @@ export function DiffPanel({
     viewMode === 'unified'
       ? 'Switch to “Side by side” to scroll the two panes'
       : syncScroll
-        ? 'Panes scroll together — uncheck to scroll independently'
-        : 'Panes scroll independently — check to scroll together';
+        ? 'Panes scroll together — turn off to scroll independently'
+        : 'Panes scroll independently — turn on to scroll together';
 
   return (
     <div
@@ -741,27 +821,37 @@ export function DiffPanel({
               applies to the side-by-side layout (two panes): when on, the panes
               scroll together; when off, each scrolls independently. */}
           {showSyncScroll && (
-            <label
-              class={`inline-flex select-none items-center gap-2 font-sans text-button-md ${
-                syncScrollControlDisabled
-                  ? 'cursor-not-allowed text-mute'
-                  : 'cursor-pointer text-body'
-              }`}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={syncScroll}
+              disabled={syncScrollControlDisabled}
               title={syncScrollTitle}
               data-control="sync-scroll"
+              onClick={() => setSyncScroll((value) => !value)}
+              class={`group inline-flex select-none items-center gap-2 font-sans text-button-md transition-colors focus-visible:outline-none ${
+                syncScrollControlDisabled
+                  ? 'cursor-not-allowed text-mute'
+                  : 'cursor-pointer text-body hover:text-ink'
+              }`}
             >
-              <input
-                type="checkbox"
-                class="h-4 w-4 cursor-pointer rounded border-hairline accent-link focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-link/50 disabled:cursor-not-allowed"
-                checked={syncScroll}
-                disabled={syncScrollControlDisabled}
-                aria-label="Sync Scroll"
-                onChange={(event) =>
-                  setSyncScroll((event.currentTarget as HTMLInputElement).checked)
-                }
-              />
+              {/* Track: accent when on, neutral hairline when off. */}
+              <span
+                class={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full px-0.5 transition-colors group-focus-visible:ring-2 group-focus-visible:ring-link/50 ${
+                  syncScroll ? 'bg-link' : 'bg-hairline'
+                } ${syncScrollControlDisabled ? 'opacity-50' : ''}`}
+              >
+                {/* Knob: elevated white puck that slides right when on. Uses the
+                    Level-2 "Subtle Drop" elevation token so it lifts off the
+                    track (Level 1 is only an inset hairline). */}
+                <span
+                  class={`inline-block h-4 w-4 rounded-full bg-canvas shadow-level-2 transition-transform duration-150 ease-in-out ${
+                    syncScroll ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </span>
               Sync Scroll
-            </label>
+            </button>
           )}
           {/* Format both documents (beautify / indent) with one click. */}
           <button
@@ -773,6 +863,19 @@ export function DiffPanel({
           >
             Format JSON
           </button>
+          {/* Clear both documents (and their labels). Parent owns the reset so
+              the shared buffers + persisted storage are wiped together. */}
+          {onClear && (
+            <button
+              type="button"
+              class="inline-flex items-center whitespace-nowrap rounded-md px-3 py-1.5 font-sans text-button-md text-body ring-1 ring-inset ring-hairline transition-colors cursor-pointer hover:bg-canvas-soft hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-link/50"
+              data-action="clear-all"
+              title="Clear both documents"
+              onClick={onClear}
+            >
+              Clear
+            </button>
+          )}
           <div
             class="inline-flex items-center gap-1 rounded-lg bg-canvas-soft-2 p-1"
             role="group"
@@ -890,35 +993,74 @@ export function DiffPanel({
         </div>
       )}
 
-      {/* ── Difference count / no-differences message, centered (Req 9.6) ──── */}
+      {/* ── Editable file names + difference count (Req 9.6) ──────────────────
+          Three columns keep the count centered regardless of the field widths:
+          the Left name sits above the left pane, the Right name above the right
+          pane. */}
       {showCountBanner && (
         <div
-          class="flex items-center justify-center gap-2 border-b border-hairline bg-canvas-soft px-4 py-2"
-          role="status"
+          class="grid grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-hairline bg-canvas-soft px-4 py-2"
           data-region={differenceCount === 0 ? 'no-differences' : 'difference-summary'}
         >
-          {differenceCount === 0 ? (
-            <>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="text-success"
-                aria-hidden="true"
-              >
-                <path d="M3.5 8.5l3 3 6-7" />
-              </svg>
-              <span class="font-sans text-body-sm text-body">No differences found</span>
-            </>
+          {onLeftNameChange ? (
+            <input
+              type="text"
+              value={leftName}
+              onInput={(event) =>
+                onLeftNameChange((event.currentTarget as HTMLInputElement).value)
+              }
+              placeholder=" Original file name"
+              aria-label="Left file name"
+              data-field="left-name"
+              class={`${NAME_FIELD_BASE} justify-self-start text-left`}
+            />
           ) : (
-            <span class="font-sans text-body-sm-strong text-ink">
-              {differenceCount} {differenceCount === 1 ? 'difference' : 'differences'} found
-            </span>
+            <span />
+          )}
+
+          <div
+            class="flex items-center justify-center gap-2 justify-self-center"
+            role="status"
+          >
+            {differenceCount === 0 ? (
+              <>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="text-success"
+                  aria-hidden="true"
+                >
+                  <path d="M3.5 8.5l3 3 6-7" />
+                </svg>
+                <span class="font-sans text-body-sm text-body">No differences found</span>
+              </>
+            ) : (
+              <span class="font-sans text-body-sm-strong text-ink">
+                {differenceCount} {differenceCount === 1 ? 'difference' : 'differences'} found
+              </span>
+            )}
+          </div>
+
+          {onRightNameChange ? (
+            <input
+              type="text"
+              value={rightName}
+              onInput={(event) =>
+                onRightNameChange((event.currentTarget as HTMLInputElement).value)
+              }
+              placeholder="Modified file name"
+              aria-label="Right file name"
+              data-field="right-name"
+              class={`${NAME_FIELD_BASE} justify-self-end text-right`}
+            />
+          ) : (
+            <span />
           )}
         </div>
       )}

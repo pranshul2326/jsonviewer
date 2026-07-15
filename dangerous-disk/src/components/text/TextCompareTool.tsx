@@ -12,7 +12,7 @@
 // into the comparison, and never mutates `$document`. All chrome derives from
 // design tokens (Req 22.1).
 
-import { useEffect } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { useStore } from '@nanostores/preact';
 import {
   $document,
@@ -26,6 +26,12 @@ import TextComparePanel from './TextComparePanel';
  * shared document on entry) and renders the plain-text diff editor.
  */
 export default function TextCompareTool() {
+  // Whether the persisted buffers have been restored yet. The Monaco editor is
+  // not mounted until this is true, so it builds its models from the final
+  // restored text rather than the empty pre-restore buffers (which on a fast,
+  // cached load could otherwise win the race and clear the content).
+  const [buffersRestored, setBuffersRestored] = useState(false);
+
   // Initialize the buffers *after* hydration (in a mount effect), never during
   // render, mirroring DiffTool: restoring persisted buffers synchronously at
   // module load would diverge from the server-rendered HTML and risk a
@@ -44,6 +50,8 @@ export default function TextCompareTool() {
         seeded: true,
       });
     }
+    // Mount the editor only now, so it is created once with the final text.
+    setBuffersRestored(true);
   }, []);
 
   // Contain horizontal overscroll while the tool is mounted so a two-finger
@@ -57,10 +65,27 @@ export default function TextCompareTool() {
     return () => document.documentElement.classList.remove(CLASS);
   }, []);
 
-  const { left: leftText, right: rightText } = useStore($textCompareBuffers);
+  const {
+    left: leftText,
+    right: rightText,
+    leftName,
+    rightName,
+  } = useStore($textCompareBuffers);
 
   const setLeftText = (text: string) => $textCompareBuffers.setKey('left', text);
   const setRightText = (text: string) => $textCompareBuffers.setKey('right', text);
+  const setLeftName = (name: string) => $textCompareBuffers.setKey('leftName', name);
+  const setRightName = (name: string) => $textCompareBuffers.setKey('rightName', name);
+  // Clear both texts and their labels together (shared buffers + localStorage
+  // mirror). `seeded` stays true so Left is not re-seeded from $document.
+  const clearAll = () =>
+    $textCompareBuffers.set({
+      left: '',
+      right: '',
+      leftName: '',
+      rightName: '',
+      seeded: true,
+    });
 
   return (
     <section
@@ -72,12 +97,19 @@ export default function TextCompareTool() {
           and visualization. Fills the remaining height of the tool card, exactly
           like the Converter tab's content area. */}
       <div class="min-h-0 flex-1 overflow-hidden rounded-lg border border-hairline">
-        <TextComparePanel
-          initialLeft={leftText}
-          initialRight={rightText}
-          onLeftChange={setLeftText}
-          onRightChange={setRightText}
-        />
+        {buffersRestored && (
+          <TextComparePanel
+            initialLeft={leftText}
+            initialRight={rightText}
+            onLeftChange={setLeftText}
+            onRightChange={setRightText}
+            leftName={leftName}
+            rightName={rightName}
+            onLeftNameChange={setLeftName}
+            onRightNameChange={setRightName}
+            onClear={clearAll}
+          />
+        )}
       </div>
     </section>
   );

@@ -175,6 +175,10 @@ export interface DiffBuffers {
   left: string;
   /** Right (modified) document text. */
   right: string;
+  /** Optional user-supplied label for the Left document (shown in the banner). */
+  leftName: string;
+  /** Optional user-supplied label for the Right document (shown in the banner). */
+  rightName: string;
   /** Active mode: side-by-side compare, or three-way merge. */
   mode: 'compare' | 'merge';
   /** Whether `left` has been seeded from the shared document yet (first entry). */
@@ -185,6 +189,8 @@ export interface DiffBuffers {
 export const $diffBuffers = map<DiffBuffers>({
   left: '',
   right: '',
+  leftName: '',
+  rightName: '',
   mode: 'compare',
   seeded: false,
 });
@@ -225,6 +231,8 @@ export function restoreDiffBuffersFromStorage(): void {
       $diffBuffers.set({
         left: saved.left,
         right: saved.right,
+        leftName: typeof saved.leftName === 'string' ? saved.leftName : '',
+        rightName: typeof saved.rightName === 'string' ? saved.rightName : '',
         mode: saved.mode === 'merge' ? 'merge' : 'compare',
         // Restored buffers count as already seeded, so the Diff tool keeps them
         // instead of overwriting Left from the shared document.
@@ -266,6 +274,10 @@ export interface TextCompareBuffers {
   left: string;
   /** Right (modified) text. */
   right: string;
+  /** Optional user-supplied label for the Left text (shown in the banner). */
+  leftName: string;
+  /** Optional user-supplied label for the Right text (shown in the banner). */
+  rightName: string;
   /** Whether `left` has been seeded from the shared document yet (first entry). */
   seeded: boolean;
 }
@@ -274,6 +286,8 @@ export interface TextCompareBuffers {
 export const $textCompareBuffers = map<TextCompareBuffers>({
   left: '',
   right: '',
+  leftName: '',
+  rightName: '',
   seeded: false,
 });
 
@@ -303,6 +317,8 @@ export function restoreTextCompareBuffersFromStorage(): void {
       $textCompareBuffers.set({
         left: saved.left,
         right: saved.right,
+        leftName: typeof saved.leftName === 'string' ? saved.leftName : '',
+        rightName: typeof saved.rightName === 'string' ? saved.rightName : '',
         // Restored buffers count as already seeded, so the tool keeps them
         // instead of overwriting Left from the shared document.
         seeded: true,

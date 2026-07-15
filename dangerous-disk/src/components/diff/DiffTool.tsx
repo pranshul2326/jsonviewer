@@ -47,6 +47,12 @@ const TAB_INACTIVE = 'text-body hover:text-ink';
  * document on entry) and switches between the compare and merge modes.
  */
 export default function DiffTool() {
+  // Whether the persisted buffers have been restored yet. The Monaco editor is
+  // not mounted until this is true, so it builds its models from the final
+  // restored text rather than the empty pre-restore buffers. Starts false so
+  // the first client render matches the SSR markup (no hydration mismatch).
+  const [buffersRestored, setBuffersRestored] = useState(false);
+
   // Initialize the Diff buffers *after* hydration (in a mount effect), never
   // during render. Restoring persisted buffers — which include the active mode
   // (compare/merge) — synchronously at module load would diverge from the
@@ -64,6 +70,12 @@ export default function DiffTool() {
     if (!buffers.seeded) {
       $diffBuffers.set({ ...buffers, left: $document.get().text, seeded: true });
     }
+    // Only now mount the Monaco editor (below), so it is created exactly once
+    // with the final restored/seeded text. Mounting it earlier let Monaco build
+    // its models from the empty pre-restore buffers, and on a fast (cached)
+    // load that empty content could win the race — the reported "data cleared
+    // on refresh" bug.
+    setBuffersRestored(true);
   }, []);
 
   // Contain horizontal overscroll while the Diff tool is mounted so a two-finger
@@ -77,7 +89,13 @@ export default function DiffTool() {
     return () => document.documentElement.classList.remove(CLASS);
   }, []);
 
-  const { left: leftText, right: rightText, mode } = useStore($diffBuffers);
+  const {
+    left: leftText,
+    right: rightText,
+    leftName,
+    rightName,
+    mode,
+  } = useStore($diffBuffers);
 
   // Total structural differences, surfaced by the semantic diff list so it can
   // be shown in the always-visible toolbar (not just in the list below).
@@ -86,6 +104,20 @@ export default function DiffTool() {
   const setMode = (next: DiffMode) => $diffBuffers.setKey('mode', next);
   const setLeftText = (text: string) => $diffBuffers.setKey('left', text);
   const setRightText = (text: string) => $diffBuffers.setKey('right', text);
+  const setLeftName = (name: string) => $diffBuffers.setKey('leftName', name);
+  const setRightName = (name: string) => $diffBuffers.setKey('rightName', name);
+  // Clear both documents and their labels in one place, so the shared buffers
+  // and their localStorage mirror are wiped together. The current mode is kept,
+  // and `seeded` stays true so the Left side is not re-seeded from $document.
+  const clearAll = () =>
+    $diffBuffers.set({
+      left: '',
+      right: '',
+      leftName: '',
+      rightName: '',
+      mode: $diffBuffers.get().mode,
+      seeded: true,
+    });
 
   return (
     <section
@@ -126,13 +158,20 @@ export default function DiffTool() {
               (like the Viewer); the semantic list and patch export flow below it
               and the page scrolls. */}
           <div class="h-[75vh] shrink-0 overflow-hidden rounded-lg border border-hairline">
-            <DiffPanel
-              initialLeft={leftText}
-              initialRight={rightText}
-              onLeftChange={setLeftText}
-              onRightChange={setRightText}
-              differenceCount={diffCount}
-            />
+            {buffersRestored && (
+              <DiffPanel
+                initialLeft={leftText}
+                initialRight={rightText}
+                onLeftChange={setLeftText}
+                onRightChange={setRightText}
+                leftName={leftName}
+                rightName={rightName}
+                onLeftNameChange={setLeftName}
+                onRightNameChange={setRightName}
+                onClear={clearAll}
+                differenceCount={diffCount}
+              />
+            )}
           </div>
 
           {/* Path-keyed semantic difference list (Req 8). */}

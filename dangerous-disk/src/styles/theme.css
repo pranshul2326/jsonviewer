@@ -272,12 +272,14 @@ html.jvf-contain-overscroll-x body {
   line-height: inherit;
 }
 
-/* ─── Text Compare: clickable "jump to next difference" gutter arrows ──────
-   The Text Compare tool renders one glyph-margin decoration at the first line
-   of every change (see TextComparePanel.tsx). Each glyph is a large downward
-   arrow — green for added/modified lines, red for deletions — and clicking it
-   advances the diff editor to the next difference. Scoped by the `jvf-diff-arrow`
-   class, which is only applied on the Text Compare editor. */
+/* ─── Diff / Text Compare: clickable "jump to difference" gutter arrows ────
+   The JSON Diff (DiffPanel.tsx) and Text Compare (TextComparePanel.tsx) editors
+   render one glyph-margin decoration at the first line of every change. Each
+   glyph is a large downward arrow — green for added/modified lines, red for
+   deletions — and clicking it advances to the NEXT difference. A green up arrow
+   (`jvf-diff-arrow-up`) is also shown on the last line as a "back to top"
+   control that jumps to the start of the document. Scoped by the
+   `jvf-diff-arrow` class, which is only applied on these diff editors. */
 .monaco-editor .jvf-diff-arrow {
   cursor: pointer;
 }
@@ -298,4 +300,14 @@ html.jvf-contain-overscroll-x body {
 }
 .monaco-editor .jvf-diff-arrow-del::before {
   color: var(--color-error); /* red — removed content */
+}
+/* Bottom "back to top" arrow — flips the glyph to point upward, colors it ink
+   (near-black), and nudges it down a little. Declared last so it overrides both
+   the downward glyph in `.jvf-diff-arrow::before` and the green color from
+   `.jvf-diff-arrow-add`. */
+.monaco-editor .jvf-diff-arrow-up::before {
+  content: "\2191"; /* ↑ upwards arrow — "scroll to top" */
+  color: var(--color-ink); /* black on light surfaces; adapts in dark mode */
+  position: relative;
+  top: 3px; /* sit a little lower than the change arrows */
 }

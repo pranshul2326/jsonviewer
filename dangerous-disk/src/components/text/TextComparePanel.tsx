@@ -52,6 +52,20 @@ export interface TextComparePanelProps {
   onLeftChange?: (text: string) => void;
   /** Called with the Right (modified) text whenever it changes in the editor. */
   onRightChange?: (text: string) => void;
+  /** Optional label for the Left text, shown as an editable field in the banner. */
+  leftName?: string;
+  /** Optional label for the Right text, shown as an editable field in the banner. */
+  rightName?: string;
+  /** Called with the new Left label when the user edits the left file-name field. */
+  onLeftNameChange?: (name: string) => void;
+  /** Called with the new Right label when the user edits the right file-name field. */
+  onRightNameChange?: (name: string) => void;
+  /**
+   * Clear both texts (and their labels). When provided, a "Clear" button is
+   * shown in the toolbar. The composing parent owns the reset so the shared
+   * buffers and persisted storage are wiped in one place.
+   */
+  onClear?: () => void;
 }
 
 /** Shared base classes for the view-toggle segmented control buttons. */
@@ -61,6 +75,15 @@ const TOGGLE_BASE =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-link/50';
 const TOGGLE_ACTIVE = 'bg-canvas text-ink shadow-level-1';
 const TOGGLE_INACTIVE = 'text-body hover:text-ink';
+
+/**
+ * Shared classes for the editable Left/Right file-name fields in the banner.
+ * Borderless until hover/focus so it reads as a quiet label (mirrors DiffPanel).
+ */
+const NAME_FIELD_BASE =
+  'min-w-0 rounded-sm bg-transparent px-2 py-0.5 font-sans text-body-sm text-ink ' +
+  'placeholder:text-mute ring-1 ring-inset ring-transparent transition-colors ' +
+  'hover:ring-hairline focus:outline-none focus:ring-2 focus:ring-link/50';
 
 /**
  * An inner diff pane whose scroll-position setters we may have shadowed to
@@ -123,6 +146,11 @@ export function TextComparePanel({
   initialRight = '',
   onLeftChange,
   onRightChange,
+  leftName = '',
+  rightName = '',
+  onLeftNameChange,
+  onRightNameChange,
+  onClear,
 }: TextComparePanelProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -151,6 +179,10 @@ export function TextComparePanel({
   // Number of line-change hunks between the two documents (Monaco's own line
   // diff). `null` until the first diff has been computed.
   const [changeCount, setChangeCount] = useState<number | null>(null);
+  // Flips true once the Monaco models exist, so buffers restored from storage
+  // before Monaco finished loading (a page refresh) are still pushed into the
+  // editors once they mount (see the external-sync effects below).
+  const [modelsReady, setModelsReady] = useState(false);
 
   // ── Monaco handles (populated by the async client-only setup) ──────────────
   const editorRef = useRef<Monaco.editor.IStandaloneDiffEditor | null>(null);
@@ -242,6 +274,9 @@ export function TextComparePanel({
       originalModelRef.current = original;
       modifiedModelRef.current = modified;
       editorRef.current = editor;
+      // Signal that the models exist so the external-sync effects reconcile the
+      // editors against the latest (possibly just-restored) buffers.
+      setModelsReady(true);
 
       // Surface edits to the composing parent so the shared buffers stay in sync.
       subscriptions.push(
@@ -298,6 +333,27 @@ export function TextComparePanel({
               options: {
                 glyphMarginClassName: 'jvf-diff-arrow jvf-diff-arrow-add',
                 glyphMarginHoverMessage: { value: 'Go to first difference' },
+                stickiness:
+                  monaco!.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+              },
+            });
+          }
+          // Mirror that with a green UP arrow on the LAST line that jumps back
+          // to the very top of the document — unless a change already sits on
+          // the last line, or the document is a single line (which would
+          // collide with the line-1 arrow above).
+          const lastLine = modifiedEditor.getModel()?.getLineCount() ?? 1;
+          if (
+            decorations.length > 0 &&
+            lastLine > 1 &&
+            !decorations.some((d) => d.range.startLineNumber === lastLine)
+          ) {
+            decorations.push({
+              range: new monaco!.Range(lastLine, 1, lastLine, 1),
+              options: {
+                glyphMarginClassName:
+                  'jvf-diff-arrow jvf-diff-arrow-add jvf-diff-arrow-up',
+                glyphMarginHoverMessage: { value: 'Scroll to top' },
                 stickiness:
                   monaco!.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
               },
@@ -367,6 +423,23 @@ export function TextComparePanel({
             return;
           }
           const clickedLine = event.target.position?.lineNumber ?? 0;
+          // The bottom entry-point glyph is an UP arrow that jumps back to the
+          // top of the document; every other arrow steps to the NEXT (nearest
+          // below) difference. Read the direction off the clicked glyph's class.
+          const goUp = !!(
+            event.target.element as HTMLElement | null
+          )?.closest?.('.jvf-diff-arrow-up');
+          const modEd = editorRef.current?.getModifiedEditor() as ScrollPatchablePane;
+          if (!modEd) return;
+          // Up arrow: glide to the very top of the document (line 1).
+          if (goUp) {
+            modEd.setPosition({ lineNumber: 1, column: 1 });
+            animateScrollTo(modEd, 0);
+            modEd.focus();
+            return;
+          }
+          // Down arrows: jump to the next difference below the clicked arrow
+          // (wrapping to the first) and glide it to the 4th visible line.
           const changes = editorRef.current?.getLineChanges() ?? [];
           // The modified-side start line of each change, ascending — the exact
           // lines the arrow glyphs sit on.
@@ -374,10 +447,7 @@ export function TextComparePanel({
             .map((change) => Math.max(1, change.modifiedStartLineNumber))
             .sort((a, b) => a - b);
           if (lines.length === 0) return;
-          // First change strictly below the clicked arrow, wrapping to the first.
           const target = lines.find((line) => line > clickedLine) ?? lines[0];
-          const modEd = editorRef.current?.getModifiedEditor() as ScrollPatchablePane;
-          if (!modEd) return;
           modEd.setPosition({ lineNumber: target, column: 1 });
           // Scroll offset that puts `target` on the 4th visible line (three
           // lines of context above it). getTopForLineNumber accounts for wrapped
@@ -463,11 +533,11 @@ export function TextComparePanel({
   useEffect(() => {
     const model = originalModelRef.current;
     if (model && model.getValue() !== initialLeft) model.setValue(initialLeft);
-  }, [initialLeft]);
+  }, [initialLeft, modelsReady]);
   useEffect(() => {
     const model = modifiedModelRef.current;
     if (model && model.getValue() !== initialRight) model.setValue(initialRight);
-  }, [initialRight]);
+  }, [initialRight, modelsReady]);
 
   const showCountBanner = changeCount !== null;
 
@@ -479,8 +549,8 @@ export function TextComparePanel({
     viewMode === 'unified'
       ? 'Switch to “Side by side” to scroll the two panes'
       : syncScroll
-        ? 'Panes scroll together — uncheck to scroll independently'
-        : 'Panes scroll independently — check to scroll together';
+        ? 'Panes scroll together — turn off to scroll independently'
+        : 'Panes scroll independently — turn on to scroll together';
 
   return (
     <div
@@ -497,27 +567,51 @@ export function TextComparePanel({
         <div class="flex items-center gap-2">
           {/* Sync Scroll toggle — shown only once the documents differ. */}
           {showSyncScroll && (
-            <label
-              class={`inline-flex select-none items-center gap-2 font-sans text-button-md ${
-                syncScrollControlDisabled
-                  ? 'cursor-not-allowed text-mute'
-                  : 'cursor-pointer text-body'
-              }`}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={syncScroll}
+              disabled={syncScrollControlDisabled}
               title={syncScrollTitle}
               data-control="sync-scroll"
+              onClick={() => setSyncScroll((value) => !value)}
+              class={`group inline-flex select-none items-center gap-2 font-sans text-button-md transition-colors focus-visible:outline-none ${
+                syncScrollControlDisabled
+                  ? 'cursor-not-allowed text-mute'
+                  : 'cursor-pointer text-body hover:text-ink'
+              }`}
             >
-              <input
-                type="checkbox"
-                class="h-4 w-4 cursor-pointer rounded border-hairline accent-link focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-link/50 disabled:cursor-not-allowed"
-                checked={syncScroll}
-                disabled={syncScrollControlDisabled}
-                aria-label="Sync Scroll"
-                onChange={(event) =>
-                  setSyncScroll((event.currentTarget as HTMLInputElement).checked)
-                }
-              />
+              {/* Track: accent when on, neutral hairline when off. */}
+              <span
+                class={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full px-0.5 transition-colors group-focus-visible:ring-2 group-focus-visible:ring-link/50 ${
+                  syncScroll ? 'bg-link' : 'bg-hairline'
+                } ${syncScrollControlDisabled ? 'opacity-50' : ''}`}
+              >
+                {/* Knob: elevated white puck that slides right when on. Uses the
+                    Level-2 "Subtle Drop" elevation token so it lifts off the
+                    track (Level 1 is only an inset hairline). */}
+                <span
+                  class={`inline-block h-4 w-4 rounded-full bg-canvas shadow-level-2 transition-transform duration-150 ease-in-out ${
+                    syncScroll ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </span>
               Sync Scroll
-            </label>
+            </button>
+          )}
+
+          {/* Clear both texts (and their labels). Parent owns the reset so the
+              shared buffers + persisted storage are wiped together. */}
+          {onClear && (
+            <button
+              type="button"
+              class="inline-flex items-center whitespace-nowrap rounded-md px-3 py-1.5 font-sans text-button-md text-body ring-1 ring-inset ring-hairline transition-colors cursor-pointer hover:bg-canvas-soft hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-link/50"
+              data-action="clear-all"
+              title="Clear both texts"
+              onClick={onClear}
+            >
+              Clear
+            </button>
           )}
 
           {/* View toggle: side-by-side vs unified. */}
@@ -591,35 +685,73 @@ export function TextComparePanel({
         </div>
       </div>
 
-      {/* ── Difference count / no-differences message, centered ───────────── */}
+      {/* ── Editable file names + difference count ────────────────────────────
+          Three columns keep the count centered regardless of field widths: the
+          Left name sits above the left pane, the Right name above the right. */}
       {showCountBanner && (
         <div
-          class="flex items-center justify-center gap-2 border-b border-hairline bg-canvas-soft px-4 py-2"
-          role="status"
+          class="grid grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-hairline bg-canvas-soft px-4 py-2"
           data-region={changeCount === 0 ? 'no-differences' : 'difference-summary'}
         >
-          {changeCount === 0 ? (
-            <>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="text-success"
-                aria-hidden="true"
-              >
-                <path d="M3.5 8.5l3 3 6-7" />
-              </svg>
-              <span class="font-sans text-body-sm text-body">No differences found</span>
-            </>
+          {onLeftNameChange ? (
+            <input
+              type="text"
+              value={leftName}
+              onInput={(event) =>
+                onLeftNameChange((event.currentTarget as HTMLInputElement).value)
+              }
+              placeholder="Original file name"
+              aria-label="Left file name"
+              data-field="left-name"
+              class={`${NAME_FIELD_BASE} justify-self-start text-left`}
+            />
           ) : (
-            <span class="font-sans text-body-sm-strong text-ink">
-              {changeCount} {changeCount === 1 ? 'difference' : 'differences'} found
-            </span>
+            <span />
+          )}
+
+          <div
+            class="flex items-center justify-center gap-2 justify-self-center"
+            role="status"
+          >
+            {changeCount === 0 ? (
+              <>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="text-success"
+                  aria-hidden="true"
+                >
+                  <path d="M3.5 8.5l3 3 6-7" />
+                </svg>
+                <span class="font-sans text-body-sm text-body">No differences found</span>
+              </>
+            ) : (
+              <span class="font-sans text-body-sm-strong text-ink">
+                {changeCount} {changeCount === 1 ? 'difference' : 'differences'} found
+              </span>
+            )}
+          </div>
+
+          {onRightNameChange ? (
+            <input
+              type="text"
+              value={rightName}
+              onInput={(event) =>
+                onRightNameChange((event.currentTarget as HTMLInputElement).value)
+              }
+              placeholder="Modified file name"
+              aria-label="Right file name"
+              data-field="right-name"
+              class={`${NAME_FIELD_BASE} justify-self-end text-right`}
+            />
+          ) : (
+            <span />
           )}
         </div>
       )}
