@@ -54,7 +54,17 @@ const {
 // Graph and Twitter tags point at the production domain even though the app is
 // a statically exported single page.
 const siteOrigin = Astro.site?.origin ?? 'https://jsonviewformat.com';
-const canonicalUrl = new URL(Astro.url.pathname, siteOrigin).href;
+
+// Normalise the route to the clean, extensionless URL that the host actually
+// serves with a 200. With `build.format: 'file'` (see astro.config.mjs) the
+// build emits `about.html`, so `Astro.url.pathname` is `/about.html` — but the
+// page is served at `/about` (and `/about.html` 307-redirects there). If we
+// used the raw pathname the canonical/OG URL would point at a redirect, which
+// is exactly the Search Console "Redirect error" we are fixing. So strip the
+// `.html` extension and collapse `index.html` to the site root.
+const cleanPathname =
+  Astro.url.pathname.replace(/index\.html$/, '').replace(/\.html$/, '') || '/';
+const canonicalUrl = new URL(cleanPathname, siteOrigin).href;
 const ogImageUrl = new URL(ogImage, siteOrigin).href;
 const siteName = 'JSONLab';
 

@@ -12,6 +12,24 @@ export default defineConfig({
   // 100% client-side, statically exported app (Requirement 18: privacy).
   output: 'static',
 
+  // Clean, canonical URLs with NO trailing slash (e.g. /about, /json-viewer).
+  //
+  // `build.format: 'file'` emits `about.html` instead of `about/index.html`.
+  // Cloudflare's static-asset server maps that flat file to the extensionless
+  // path `/about` and returns 200, while redirecting `/about/` -> `/about`.
+  // `trailingSlash: 'never'` makes Astro build the <link rel="canonical"> and
+  // Open Graph URLs without a trailing slash to match.
+  //
+  // The net effect: the served URL, the canonical tag, the sitemap and every
+  // internal link all agree on ONE URL form, so Googlebot never hits a redirect
+  // when it crawls a sitemap URL. This fixes the Search Console "Redirect error"
+  // that occurred because the sitemap listed `/about` while the site served the
+  // page at `/about/` (a 307 redirect).
+  trailingSlash: 'never',
+  build: {
+    format: 'file',
+  },
+
   // Interactive workbench is a set of Preact islands sharing nanostores state.
   integrations: [preact()],
 
