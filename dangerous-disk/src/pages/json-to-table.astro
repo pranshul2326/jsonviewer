@@ -1,5 +1,190 @@
 ---
+import ToolSeoContent from '../components/ToolSeoContent.astro';
 import ToolPage from '../layouts/ToolPage.astro';
+
+interface ToolFaq {
+  q: string;
+  a: string;
+}
+
+const faqs: ToolFaq[] = [
+  {
+    q: 'How to convert JSON to an Excel table?',
+    a: '<p>Paste a top-level JSON array of objects into the JSON to Table tool. After the rows appear, select <strong>CSV</strong> and download the current view, then open that <code>.csv</code> file in Excel and optionally save it as an Excel workbook. JSONLab does not create native <code>.xlsx</code> files, but CSV preserves the visible rows and columns for Excel.</p>',
+  },
+  {
+    q: 'How to create a table from JSON data?',
+    a: '<p>Represent the data as an array where every item is an object, then paste it into the tool. Each object becomes a row, and the union of its top-level keys becomes the columns. Missing properties produce empty cells. You can then search, filter, sort and resize the generated table.</p>',
+  },
+  {
+    q: 'How to represent a table in JSON?',
+    a: '<p>Use an array of consistently shaped objects, for example <code>[{ "id": 1, "name": "Ada" }, { "id": 2, "name": "Linus" }]</code>. The array represents the table, each object represents one row, and each object key represents a column. Keep comparable values under the same key across rows.</p>',
+  },
+  {
+    q: 'How to create a SQL table from JSON data?',
+    a: '<p>Inspect the JSON keys and sample values, choose an appropriate SQL type for each column, and write a <code>CREATE TABLE</code> statement such as <code>CREATE TABLE people (id integer, name text);</code>. JSONLab helps you view the rows and columns but does not generate SQL. Validate optional fields, nested values and type variations before finalizing the schema.</p>',
+  },
+  {
+    q: 'How to insert JSON data into a PostgreSQL table?',
+    a: '<p>For intact documents, create a <code>jsonb</code> column and use a parameterized statement such as <code>INSERT INTO events (payload) VALUES ($1::jsonb)</code>. To create relational rows, define columns and use PostgreSQL functions such as <code>jsonb_to_recordset</code> after validating the shape. JSONLab does not connect to PostgreSQL; use your database client or application driver for the insertion.</p>',
+  },
+  {
+    q: 'What JSON format is required for the table viewer?',
+    a: '<p>The root value must be an array, and every array item must be an object. A single object, an array of strings or numbers, or a mixed array is rejected. An empty array is valid but has no rows or columns to display.</p>',
+  },
+  {
+    q: 'Does the JSON to table converter flatten nested objects?',
+    a: '<p>No. Columns come from top-level keys only. A nested object or array remains compact JSON text inside its cell rather than being expanded into additional columns. Flatten nested data before pasting it if you need one column per nested property.</p>',
+  },
+  {
+    q: 'Can I search, filter and sort the JSON table?',
+    a: '<p>Yes. Global search checks all visible cell values, each column has its own filter, and selecting a column heading toggles ascending or descending sorting. Numeric values sort numerically, other values sort lexicographically, and column widths can be resized by dragging their dividers.</p>',
+  },
+  {
+    q: 'Which table formats can I download?',
+    a: '<p>You can download the current filtered and sorted view as JSON or CSV. CSV fields are quoted when needed for commas, quotes or line breaks. Native Excel, SQL and database-specific exports are not available.</p>',
+  },
+  {
+    q: 'Can the JSON to table visualizer handle large datasets?',
+    a: '<p>The table uses virtualized scrolling, which renders only the rows needed for the current viewport and helps large arrays remain responsive. Performance still depends on document size, column count and the browser. There is no pagination control; search, filters and the scrollable grid are used to navigate the data.</p>',
+  },
+  {
+    q: 'Is my JSON uploaded when I create a table?',
+    a: '<p>No. Parsing, filtering, sorting and downloads happen in your browser, and exported files are created with local Blob URLs. Smaller shared JSON documents may remain in session storage so they are available across JSONLab tools. Clear the document or close the session when finished with sensitive data.</p>',
+  },
+];
+
+const pageUrl = new URL(
+  '/json-to-table',
+  Astro.site?.origin ?? 'https://jsonviewformat.com',
+).href;
+
+const application = {
+  name: 'JSON to Table Online',
+  alternateName: 'JSONLab JSON Table Viewer',
+  url: pageUrl,
+  description:
+    'A private browser-based JSON to table converter for searching, filtering, sorting and exporting an array of objects as JSON or CSV.',
+  applicationCategory: 'DeveloperApplication',
+  operatingSystem: 'Any (web-based)',
+  browserRequirements: 'Requires a modern web browser with JavaScript enabled.',
+  featureList: [
+    'JSON array of objects to table conversion',
+    'Global search across table cells',
+    'Per-column filters',
+    'Ascending and descending column sorting',
+    'Resizable columns',
+    'Virtualized scrolling for large arrays',
+    'Filtered and sorted JSON or CSV download',
+    'Private browser-local processing',
+  ],
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'USD',
+  },
+  isAccessibleForFree: true,
+};
 ---
 
-<ToolPage tool="grid" />
+<ToolPage tool="grid">
+  <Fragment slot="seo">
+    <ToolSeoContent
+      heading="JSON to Table Online — Search, Sort and Export JSON Data"
+      headingId="json-to-table-heading"
+      faqHeading="Frequently asked questions about converting JSON to a table"
+      {faqs}
+      {pageUrl}
+      {application}
+    >
+      <p>
+        <strong>JSONLab JSON to Table</strong> is a free, browser-based
+        <strong>JSON to table converter</strong> that turns an array of objects
+        into a readable data grid. Paste JSON and each object becomes a row while
+        its keys become columns. The resulting <strong>JSON to table viewer</strong>
+        can search every cell, filter individual columns, sort records, resize
+        columns and download the current view as JSON or CSV, all without sending
+        the document to an application server.
+      </p>
+
+      <h2>Use the right JSON structure for a table</h2>
+      <p>
+        Tabular data should use a top-level array whose items are objects. For
+        example:
+      </p>
+      <pre><code>[
+  {`{ "id": 1, "name": "Ada", "active": true }`},
+  {`{ "id": 2, "name": "Linus", "active": false }`}
+]</code></pre>
+      <p>
+        The array supplies the records, each object supplies one row, and the
+        union of top-level keys supplies the columns. A property that is missing
+        from one object appears as an empty cell. A lone object, mixed array or
+        array of primitive values is not treated as a table. Nested objects and
+        arrays stay as compact JSON inside a cell; this
+        <strong>JSON to table formatter</strong> does not recursively flatten them.
+      </p>
+
+      <h2>How to convert JSON to a table online</h2>
+      <ol>
+        <li>Paste a valid JSON array of objects into the input area.</li>
+        <li>Review the automatically generated rows, columns and cell values.</li>
+        <li>Search all columns or add a filter beneath a specific heading.</li>
+        <li>Sort or resize columns, then download the visible view as JSON or CSV.</li>
+      </ol>
+      <p>
+        If the document has invalid syntax, use the <a href="/json-viewer">JSON
+        Viewer and Validator</a> to locate the problem. If the source is CSV,
+        YAML, XML or TOML, convert it to JSON first with the
+        <a href="/json-converter">JSON Converter</a>, then make sure the root
+        result is an array of objects.
+      </p>
+
+      <h2>Search, filter and sort with a JSON table visualizer</h2>
+      <p>
+        Global search performs a case-insensitive match across available cells.
+        Column filters can be combined to narrow the result further, and column
+        headers toggle ascending or descending order. Numbers sort numerically;
+        other values use text ordering. Drag a header divider to make a column
+        wider or narrower. The <strong>JSON to table visualizer</strong> uses
+        virtualized scrolling rather than pagination, so it draws only the rows
+        needed around the current viewport while you explore a large result.
+      </p>
+
+      <h2>Excel and Python JSON to table workflows</h2>
+      <p>
+        For an <strong>Excel JSON to table</strong> workflow, build the table,
+        choose CSV, download the filtered and sorted rows, and open the file in
+        Excel. This is also the practical way to <strong>convert JSON to an Excel
+        table</strong>; JSONLab does not generate native XLSX workbooks. In Python,
+        a common <strong>Python JSON to table</strong> workflow uses
+        <code>pandas.read_json()</code> or <code>pandas.DataFrame()</code> after
+        loading the array. The browser viewer is useful for checking the shape
+        and values before writing that script.
+      </p>
+
+      <h2>Preparing JSON for SQL and PostgreSQL</h2>
+      <p>
+        A visual table can help identify candidate SQL columns, but database
+        schemas also need explicit types, keys, nullability and constraints.
+        JSONLab does not generate <code>CREATE TABLE</code> statements or connect
+        to a database. For PostgreSQL, keep flexible documents in a
+        <code>jsonb</code> column or map stable properties into relational columns,
+        then insert them with parameterized SQL through your database client.
+        Review nested values and inconsistent types carefully before importing
+        production data.
+      </p>
+
+      <h2>Download the current view privately</h2>
+      <p>
+        The Download control exports exactly the current filtered and sorted rows
+        as JSON or CSV. Files are created locally in the browser, so there is no
+        server-side export job. Smaller shared documents may persist in session
+        storage while you move between JSONLab pages; clear the data or close the
+        session when finished. This makes the <strong>JSON to table online</strong>
+        workflow convenient for inspecting API results, reports and test data
+        without creating an account.
+      </p>
+    </ToolSeoContent>
+  </Fragment>
+</ToolPage>

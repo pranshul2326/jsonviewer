@@ -177,7 +177,7 @@ const csp = [
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonicalUrl} />
     <meta property="og:image" content={ogImageUrl} />
-    <meta property="og:image:alt" content="JSONLab — free online JSON viewer, formatter and converter" />
+    <meta property="og:image:alt" content={`${title} preview`} />
     <meta property="og:locale" content="en_US" />
 
     {/* Twitter Card */}
@@ -185,7 +185,7 @@ const csp = [
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImageUrl} />
-    <meta name="twitter:image:alt" content="JSONLab — free online JSON viewer, formatter and converter" />
+    <meta name="twitter:image:alt" content={`${title} preview`} />
 
     {/* Structured data (schema.org) for rich results and AI answer engines */}
     <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />

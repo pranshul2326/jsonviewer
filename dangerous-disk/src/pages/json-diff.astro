@@ -1,5 +1,368 @@
 ---
 import ToolPage from '../layouts/ToolPage.astro';
+
+const faqs: { q: string; a: string }[] = [
+  {
+    q: 'How to diff two JSON files?',
+    a: '<p>Open both files locally, copy the first document into the left editor and the second into the right editor, then select <strong>Compare</strong>. JSONLab parses both files and highlights added, removed and changed values by their JSON path. You can then inspect each difference, merge selected changes or export the result as an RFC 6902 JSON Patch.</p>',
+  },
+  {
+    q: 'How to diff JSON files?',
+    a: '<p>Use a semantic JSON diff rather than comparing the files as plain text. Paste the two JSON documents into this tool and run the comparison. Because both sides are parsed first, indentation, whitespace and object key order do not create false changes; the result shows differences in the underlying values and structure.</p>',
+  },
+  {
+    q: 'What is a semantic JSON diff?',
+    a: '<p>A semantic JSON diff compares parsed objects, arrays and values instead of raw characters. It understands that <code>{ "a": 1, "b": 2 }</code> and <code>{ "b": 2, "a": 1 }</code> represent the same object. Genuine additions, removals, type changes and value changes are still reported with their precise paths.</p>',
+  },
+  {
+    q: 'Does JSON key order affect the comparison?',
+    a: '<p>No. The order of keys inside a JSON object does not affect this comparison, because key order does not change the object’s meaning. Array position can be meaningful, however, so reordered or changed array items may appear as differences.</p>',
+  },
+  {
+    q: 'Can I use this JSON diff checker online without uploading data?',
+    a: '<p>Yes. JSONLab runs the comparison locally in your browser. Your JSON is not sent to an application server, which makes the tool suitable for private API responses, configuration files and test fixtures. You can also keep using the core comparison after the page has loaded without sending the documents elsewhere.</p>',
+  },
+  {
+    q: 'What changes does the JSON difference checker find?',
+    a: '<p>The checker identifies properties and array items that were added or removed, values that changed, and type changes such as a number becoming a string. Each result includes a JSON path so you can locate the change in nested data and inspect the corresponding values side by side.</p>',
+  },
+  {
+    q: 'Can I merge changes or export a JSON Patch?',
+    a: '<p>Yes. After comparing the documents, you can apply selected changes between the left and right versions or export a standard RFC 6902 JSON Patch for use in an API, test or automated workflow. The tool also supports three-way merge when you need to compare left and right changes against a common base.</p>',
+  },
+  {
+    q: 'How do I run a JSON diff in Python?',
+    a: '<p>Load both files with Python’s built-in <code>json</code> module and compare the decoded values to test semantic equality. For a detailed visual review, paste those values into JSONLab to see paths, changed values and patch operations. This combines a repeatable Python JSON diff check with an easy side-by-side viewer.</p>',
+  },
+];
+
+const pageUrl = new URL(
+  '/json-diff',
+  Astro.site?.origin ?? 'https://jsonviewformat.com',
+).href;
+
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebApplication',
+      '@id': `${pageUrl}#application`,
+      name: 'JSON Diff Online',
+      alternateName: 'JSONLab JSON Difference Checker',
+      url: pageUrl,
+      description:
+        'A free, private online JSON diff tool for semantic comparison, side-by-side review, merging and RFC 6902 patch export.',
+      applicationCategory: 'DeveloperApplication',
+      operatingSystem: 'Any (web-based)',
+      browserRequirements: 'Requires a modern web browser with JavaScript enabled.',
+      featureList: [
+        'Semantic comparison of two JSON documents',
+        'Side-by-side JSON difference viewer',
+        'Added, removed and changed value detection',
+        'Left-to-right and right-to-left change merging',
+        'Three-way JSON merge',
+        'RFC 6902 JSON Patch export',
+        'Private client-side processing',
+      ],
+      offers: {
+        '@type': 'Offer',
+        price: '0',
+        priceCurrency: 'USD',
+      },
+      isAccessibleForFree: true,
+    },
+    {
+      '@type': 'FAQPage',
+      '@id': `${pageUrl}#faq`,
+      mainEntity: faqs.map((item) => ({
+        '@type': 'Question',
+        name: item.q,
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: item.a,
+        },
+      })),
+    },
+  ],
+};
 ---
 
-<ToolPage tool="diff" />
+<ToolPage tool="diff">
+  <Fragment slot="seo">
+    <section class="seo-content" aria-labelledby="json-diff-heading">
+      <article class="seo-prose">
+        <h1 id="json-diff-heading">JSON Diff Online — Compare Two JSON Files</h1>
+
+        <p>
+          <strong>JSONLab JSON Diff</strong> is a free, browser-based
+          <strong>JSON diff tool</strong> that compares two documents and turns
+          complex changes into a clear side-by-side result. Paste an original
+          JSON document on the left and an updated version on the right to find
+          additions, removals and changed values in seconds. This
+          <strong>online JSON diff</strong> focuses on the actual data structure,
+          not visual formatting, so it is useful for reviewing API responses,
+          configuration files, test fixtures and saved application state.
+        </p>
+
+        <h2>Find meaningful changes with a semantic JSON compare</h2>
+        <p>
+          An ordinary text comparator treats every space, line break and moved
+          key as a change. A <strong>semantic JSON diff</strong> first parses both
+          documents, then compares their objects, arrays and primitive values.
+          Reformatting a file or changing the order of keys inside an object
+          therefore does not produce noise. Array positions remain meaningful,
+          while real type and value changes are reported at their exact JSON
+          paths. The result is a more accurate <strong>semantic JSON compare</strong>
+          for structured data.
+        </p>
+        <p>
+          The <strong>JSON diff viewer</strong> groups every JSON difference so
+          you can move through nested changes without manually scanning two long
+          files. Added, removed and modified values are easy to distinguish, and
+          the original values remain visible for context. Use it as a quick
+          <strong>JSON diff finder</strong> during code review or as a final JSON
+          diff check before an API, migration or configuration change is shipped.
+        </p>
+
+        <h2>How to diff two JSON files online</h2>
+        <p>
+          You do not need to install a package or upload either file. Complete a
+          JSON diff online in four steps:
+        </p>
+        <ol>
+          <li>Open both local JSON files and copy the original into the left editor.</li>
+          <li>Paste the revised document into the right editor.</li>
+          <li>Select <strong>Compare</strong> to run the semantic comparison.</li>
+          <li>Review each path, merge the changes you want, or export a JSON Patch.</li>
+        </ol>
+        <p>
+          Both documents must contain valid JSON. If one side has a missing
+          quote, comma or bracket, open the <a href="/json-viewer">JSON Viewer
+          and Validator</a> to locate and repair the syntax first, then return to
+          the comparison.
+        </p>
+
+        <h2>A JSON difference checker for development workflows</h2>
+        <p>
+          This <strong>JSON diff checker</strong> helps developers verify payloads
+          from two environments, inspect an API contract change, compare package
+          configuration, review test snapshots and troubleshoot unexpected data.
+          Unlike a raw line diff, the <strong>JSON difference checker</strong>
+          directs you to the property path that changed. You can merge selected
+          edits left-to-right or right-to-left, perform a three-way merge against
+          a common base, and export an RFC 6902 patch for automation. The
+          resulting patch is easy to review, store with a ticket, and replay in
+          another environment when the same update must be applied consistently.
+          If formatting and line-level edits are the changes you need to preserve,
+          use the dedicated <a href="/text-compare">Text Compare tool</a> instead.
+        </p>
+
+        <h2>Python JSON diff workflows</h2>
+        <p>
+          For a <strong>Python JSON diff</strong>, load each file with Python’s
+          built-in <code>json</code> module and compare the decoded values rather
+          than their raw text. This ignores object key order in the same way as a
+          semantic comparison:
+        </p>
+        <pre><code>import json
+
+with open("before.json") as before, open("after.json") as after:
+    is_equal = json.load(before) == json.load(after)
+
+print(is_equal)</code></pre>
+        <p>
+          Python can confirm equality, while this visual JSON diff tool explains
+          where the documents differ and can generate patch operations. That
+          makes it a practical companion to a repeatable JSON diff Python test or
+          CI workflow.
+        </p>
+
+        <h2>Private JSON diff online with no document uploads</h2>
+        <p>
+          Although this is a <strong>JSON diff checker online</strong>, the
+          comparison runs locally in your browser. Your documents are not sent to
+          an application server, and no account is required. You can safely keep
+          the entire review in one tab, clear the editors when finished, and use
+          the tool again whenever you need to find a JSON difference online.
+          JSONLab is free, responsive and designed to make structured changes
+          understandable without adding another dependency to your project.
+        </p>
+      </article>
+    </section>
+
+    <section class="faq" aria-labelledby="json-diff-faq-heading">
+      <div class="faq-inner">
+        <h2 id="json-diff-faq-heading">Frequently asked questions about JSON diff</h2>
+        {
+          faqs.map((item) => (
+            <details class="faq-item">
+              <summary>{item.q}</summary>
+              <div class="faq-answer" set:html={item.a} />
+            </details>
+          ))
+        }
+      </div>
+    </section>
+
+    <script is:inline type="application/ld+json" set:html={JSON.stringify(structuredData)} />
+  </Fragment>
+</ToolPage>
+
+<style>
+  .seo-content {
+    position: relative;
+    z-index: 10;
+    padding: 2.5rem 1rem 3.5rem;
+  }
+
+  .seo-prose {
+    max-width: 72ch;
+    margin: 0 auto;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    line-height: 1.7;
+  }
+
+  .seo-prose h1 {
+    margin: 0 0 1rem;
+    font-size: 1.75rem;
+    font-weight: 600;
+    line-height: 1.25;
+  }
+
+  .seo-prose h2 {
+    margin: 1.9rem 0 0.55rem;
+    font-size: 1.2rem;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+
+  .seo-prose p {
+    margin: 0 0 1rem;
+    color: var(--color-ink-soft, var(--color-ink));
+  }
+
+  .seo-prose ol {
+    margin: 0 0 1rem;
+    padding-left: 1.4rem;
+    color: var(--color-ink-soft, var(--color-ink));
+  }
+
+  .seo-prose li {
+    margin: 0.35rem 0;
+    padding-left: 0.2rem;
+  }
+
+  .seo-prose a,
+  .faq-answer :global(a) {
+    color: var(--color-link, currentColor);
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+  }
+
+  .seo-prose code,
+  .faq-answer :global(code) {
+    border-radius: 0.25rem;
+    background-color: var(--color-canvas-soft);
+    padding: 0.05em 0.3em;
+    font-family: var(--font-mono, monospace);
+    font-size: 0.9em;
+  }
+
+  .seo-prose pre {
+    overflow-x: auto;
+    margin: 0 0 1rem;
+    border: 1px solid var(--color-hairline, var(--color-divider));
+    border-radius: 0.5rem;
+    background-color: var(--color-canvas);
+    padding: 1rem;
+  }
+
+  .seo-prose pre code {
+    background: none;
+    padding: 0;
+  }
+
+  .faq {
+    position: relative;
+    z-index: 10;
+    padding: 0 1rem 4rem;
+  }
+
+  .faq-inner {
+    max-width: 72ch;
+    margin: 0 auto;
+  }
+
+  .faq-inner h2 {
+    margin: 0 0 1.25rem;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+
+  .faq-item {
+    overflow: hidden;
+    margin-bottom: 0.625rem;
+    border: 1px solid var(--color-hairline, var(--color-divider));
+    border-radius: 0.5rem;
+    background-color: var(--color-canvas);
+  }
+
+  .faq-item summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    cursor: pointer;
+    list-style: none;
+    padding: 0.875rem 1rem;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .faq-item summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .faq-item summary::after {
+    content: '+';
+    color: var(--color-mute, var(--color-ink-soft));
+    font-size: 1.25rem;
+    font-weight: 400;
+    line-height: 1;
+  }
+
+  .faq-item[open] summary::after {
+    content: '−';
+  }
+
+  .faq-item summary:hover {
+    background-color: var(--color-canvas-soft);
+  }
+
+  .faq-item summary:focus-visible {
+    outline: 2px solid var(--color-link, currentColor);
+    outline-offset: -2px;
+  }
+
+  .faq-answer {
+    padding: 0 1rem 1rem;
+    color: var(--color-ink-soft, var(--color-ink));
+    font-family: var(--font-sans);
+    line-height: 1.65;
+  }
+
+  .faq-answer :global(p) {
+    margin: 0;
+  }
+
+  @media (min-width: 768px) {
+    .seo-prose h1 {
+      font-size: 2.125rem;
+    }
+  }
+</style>

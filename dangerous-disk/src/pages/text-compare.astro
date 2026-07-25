@@ -1,5 +1,184 @@
 ---
+import ToolSeoContent from '../components/ToolSeoContent.astro';
 import ToolPage from '../layouts/ToolPage.astro';
+
+interface ToolFaq {
+  q: string;
+  a: string;
+}
+
+const faqs: ToolFaq[] = [
+  {
+    q: 'How to compare two text files?',
+    a: '<p>Open both files in a local editor, copy the original text into the left pane and the revised text into the right pane. JSONLab automatically calculates the line differences and highlights additions, removals and modifications. You can rename each side with its file name, choose side-by-side or unified view, and use the gutter arrows to move through changed sections.</p>',
+  },
+  {
+    q: 'What is compare and contrast text structure?',
+    a: '<p>Compare-and-contrast text structure is a writing pattern that explains how two subjects are alike and different, often using phrases such as “both,” “however” and “in contrast.” This page compares the literal wording of two texts; it does not automatically identify a document’s rhetorical structure, but it can reveal revisions between two compare-and-contrast drafts.</p>',
+  },
+  {
+    q: 'How to compare two text files for differences?',
+    a: '<p>Copy one file into each editable pane. Every changed line is marked, and the status area reports the number of difference groups. Keep Side by side selected to align the original and modified versions, or switch to Unified for one combined stream. The comparison is case-sensitive and whitespace-sensitive, so capitalization and indentation changes are included.</p>',
+  },
+  {
+    q: 'How to compare multiple text differences files?',
+    a: '<p>Select <strong>new compare</strong> to open another independent comparison tab, then paste the next original/revised pair. Each tab compares two texts rather than processing a batch of files automatically. This makes it possible to keep several comparisons open in one page while reviewing each pair separately.</p>',
+  },
+  {
+    q: 'How to compare text in Excel?',
+    a: '<p>Copy the relevant cells from each worksheet and paste one version on each side, or save each range as CSV and paste the resulting text. JSONLab will compare the rows as plain text. It does not understand formulas, workbook formatting, cell types or sheet relationships, so use Excel’s spreadsheet tools when you need a cell-aware comparison.</p>',
+  },
+  {
+    q: 'Is the online text compare tool free?',
+    a: '<p>Yes. The Text Compare tool is free to use and does not require an account. You can edit both sides, open additional comparison tabs, switch views, use fullscreen and copy either document without a subscription.</p>',
+  },
+  {
+    q: 'Does JSONLab upload the text I compare?',
+    a: '<p>No. The comparison runs in your browser. To restore work after a refresh, combined text up to roughly 2 MB may be saved in your browser’s local storage; larger comparisons are not persisted. Use <strong>Clear</strong> and remove site storage when you want to erase locally retained comparison data.</p>',
+  },
+  {
+    q: 'What is the difference between side-by-side and unified view?',
+    a: '<p>Side-by-side view places the original on the left and modified text on the right so corresponding lines align visually. Unified view combines changes in one pane, which can be easier on a narrow screen. Synced scrolling is available for side-by-side mode and can be disabled when you want to move each pane independently.</p>',
+  },
+  {
+    q: 'Does the text compare tool detect case and whitespace changes?',
+    a: '<p>Yes. Comparison is case-sensitive and preserves whitespace differences, including indentation and trimmed spaces. There are currently no ignore-case or ignore-whitespace options, so normalize the source text first if those changes should not count.</p>',
+  },
+  {
+    q: 'Can I compare code, logs or configuration files?',
+    a: '<p>Yes. The editor treats input as plain text, so it works for source code, logs, SQL, configuration, prose, CSV and other text-based content. It highlights line changes rather than applying language-specific parsing. For structural JSON comparison that ignores object key order, use the <a href="/json-diff">JSON Diff tool</a>.</p>',
+  },
+  {
+    q: 'Can I download or export the text comparison?',
+    a: '<p>The current page lets you copy the complete original or modified text, but it does not export a diff report or patch file. If you need to preserve the result, copy each side into local files or capture the changed lines in your normal version-control workflow.</p>',
+  },
+];
+
+const pageUrl = new URL(
+  '/text-compare',
+  Astro.site?.origin ?? 'https://jsonviewformat.com',
+).href;
+
+const application = {
+  name: 'Text Compare Online',
+  alternateName: 'JSONLab Free Text Compare Tool',
+  url: pageUrl,
+  description:
+    'A free browser-based text comparison tool for finding added, removed and changed lines in side-by-side or unified views.',
+  applicationCategory: 'DeveloperApplication',
+  operatingSystem: 'Any (web-based)',
+  browserRequirements: 'Requires a modern web browser with JavaScript enabled.',
+  featureList: [
+    'Editable two-text line comparison',
+    'Side-by-side and unified diff views',
+    'Added, removed and changed line highlighting',
+    'Multiple independent comparison tabs',
+    'Difference navigation with gutter controls',
+    'Synchronized or independent scrolling',
+    'Fullscreen review and clipboard copy',
+    'Private browser-local processing',
+  ],
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'USD',
+  },
+  isAccessibleForFree: true,
+};
 ---
 
-<ToolPage tool="text" />
+<ToolPage tool="text">
+  <Fragment slot="seo">
+    <ToolSeoContent
+      heading="Text Compare Online — Free Side-by-Side Difference Tool"
+      headingId="text-compare-heading"
+      faqHeading="Frequently asked questions about text comparison"
+      {faqs}
+      {pageUrl}
+      {application}
+    >
+      <p>
+        <strong>JSONLab Text Compare</strong> is a fast, free
+        <strong>text compare online</strong> tool for finding changes between two
+        editable documents. Paste an original version on the left and a revised
+        version on the right to see added, removed and modified lines highlighted
+        automatically. The <strong>online text compare</strong> works with prose,
+        code, logs, configuration, SQL, CSV and any other plain-text content, and
+        the comparison stays inside your browser.
+      </p>
+
+      <h2>Find line changes with a focused text compare tool</h2>
+      <p>
+        This <strong>text compare tool</strong> uses a professional diff editor to
+        group related line changes. It reports how many difference groups were
+        found and keeps the source and revised text editable, so you can correct
+        either side and watch the result update. Comparison is intentionally
+        case-sensitive and whitespace-sensitive: a capital letter, indentation
+        change or trailing space can be meaningful in code and configuration.
+        There are no hidden normalization rules that could conceal those edits.
+      </p>
+
+      <h2>How to compare two texts online</h2>
+      <ol>
+        <li>Open each local file and copy the original text into the left pane.</li>
+        <li>Paste the changed version into the right pane.</li>
+        <li>Review the highlighted additions, removals and modified line groups.</li>
+        <li>Use the arrows in the gutter to move through differences and wrap to the first.</li>
+      </ol>
+      <p>
+        Editable labels above the panes let you record each file name. Copy
+        controls return the complete contents of either side to the clipboard,
+        while Clear removes the active comparison text. The page does not require
+        a file upload: opening and copying from files locally keeps the workflow
+        predictable across browsers and file types.
+      </p>
+
+      <h2>Side-by-side, unified and fullscreen review</h2>
+      <p>
+        Side-by-side mode aligns the original and modified documents for an easy
+        visual scan. Turn Sync Scroll on to move both panes together, or disable
+        it when you need to inspect distant sections independently. Unified mode
+        presents the changes in one stream and is useful on smaller screens.
+        Fullscreen expands the editor to the viewport for long documents, and the
+        Escape key returns to the normal page. These controls make the
+        <strong>online text compare tool</strong> practical for both a quick check
+        and a detailed review.
+      </p>
+
+      <h2>Compare multiple pairs with independent tabs</h2>
+      <p>
+        Select <strong>new compare</strong> whenever you need another original and
+        modified pair. Each tab keeps its own two texts and editable labels, so
+        several reviews can remain open without mixing their results. This is
+        different from automated batch or multi-file comparison: the tool always
+        evaluates two texts within the active tab. The tab approach is useful for
+        checking several release notes, environment files or draft revisions one
+        pair at a time.
+      </p>
+
+      <h2>Text files, Excel content and structured JSON</h2>
+      <p>
+        For two text files, open them locally and paste one into each pane. Excel
+        ranges can also be copied as tab-separated text, or worksheets can be
+        saved as CSV before comparison. The result remains a plain-text line diff;
+        formulas, cell formatting and workbook structure are not interpreted.
+        Similarly, JSON can be compared here when formatting matters, but the
+        <a href="/json-diff">JSON Diff</a> page is better when you want a semantic
+        comparison that ignores object key order and whitespace.
+      </p>
+
+      <h2>A free text compare tool with browser-local processing</h2>
+      <p>
+        This <strong>free text compare tool</strong> performs its work locally and
+        does not send the documents to an application server. To make refreshes
+        less disruptive, the browser can retain comparison tabs and combined text
+        up to roughly 2 MB in local storage; larger content is not persisted. Use
+        Clear and remove the site’s stored data when handling sensitive material.
+        The responsive editor also works without installing a desktop comparison
+        package, which is convenient on shared or temporary development machines.
+        No registration is required, so the text compare tool online is ready
+        whenever you need to review a change.
+      </p>
+    </ToolSeoContent>
+  </Fragment>
+</ToolPage>

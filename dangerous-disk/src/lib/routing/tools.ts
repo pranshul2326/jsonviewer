@@ -67,56 +67,56 @@ export const TOOL_ROUTES: readonly ToolRoute[] = [
     path: '/json-diff',
     label: 'JSON Diff',
     navBrand: 'JSON Diff & Compare',
-    title: 'JSON Diff & Compare Tool — Find Differences | JSONLab',
+    title: 'JSON Diff Online — Compare & Find JSON Differences | JSONLab',
     description:
-      'Free online JSON diff and compare tool. Semantically compare two JSON documents, see every difference side by side, merge changes and export an RFC 6902 patch — all in your browser.',
+      'Compare two JSON files with a free JSON diff online tool. Find semantic differences, review changes side by side, merge edits and export RFC 6902 patches.',
     keywords:
-      'json diff, json compare, compare json, json difference, json merge, json patch, rfc 6902, semantic json diff, diff two json files',
-    heading: 'JSON Diff & Compare',
+      'json diff, json diff online, json diff checker, json diff tool, online json diff, json diff viewer, json diff compare, python json diff, json diff python, semantic json diff, json diff checker online, json diff check, json difference, json difference checker, json difference online, semantic JSON compare, json diff finder, compare json files, RFC 6902',
+    heading: 'JSON Diff Online — Compare Two JSON Files',
     intro:
-      'Compare two JSON documents semantically, so reordered keys are treated as identical and only real changes are highlighted. View differences side by side, merge changes, and export a standard RFC 6902 JSON Patch.',
+      'Compare two JSON documents with a semantic diff that ignores object key order and formatting. Review each added, removed or changed value side by side, merge edits, and export an RFC 6902 JSON Patch without uploading your data.',
   },
   {
     tool: 'grid',
     path: '/json-to-table',
     label: 'JSON to Table',
     navBrand: 'JSON to Table / Grid Viewer',
-    title: 'JSON to Table / Grid Viewer — JSONLab',
+    title: 'JSON to Table Online — Convert JSON to a Table | JSONLab',
     description:
-      'Free online JSON to table converter. Turn an array of JSON objects into a searchable, sortable, filterable spreadsheet-style grid — entirely in your browser.',
+      'Convert JSON to a searchable, sortable table online. Filter an array of objects, resize columns, and download the current view as JSON or CSV.',
     keywords:
-      'json to table, json grid, json table viewer, json to spreadsheet, json array to table, view json as table',
-    heading: 'JSON to Table / Grid Viewer',
+      'json to table, json to table converter, convert json to table, json to table online, excel json to table, python json to table, json to table viewer, excel convert json to table, json to table formatter, json to table visualizer, json grid, json array to table',
+    heading: 'JSON to Table Online — Search, Sort and Export JSON Data',
     intro:
-      'Transform an array of JSON objects into a searchable, sortable and filterable table. The grid view makes large datasets easy to scan and explore, all without uploading your data.',
+      'Turn a JSON array of objects into a searchable, sortable and filterable table. Resize columns, inspect nested values, and download the current filtered view as JSON or CSV without uploading your data.',
   },
   {
     tool: 'converter',
     path: '/json-converter',
     label: 'JSON Converter',
     navBrand: 'JSON Converter & Code Generator',
-    title: 'JSON Converter — JSON to CSV, YAML, XML & Code | JSONLab',
+    title: 'JSON Converter Online — XML, CSV & YAML | JSONLab',
     description:
-      'Free online JSON converter. Convert JSON to CSV, YAML, XML and TOML, generate TypeScript, Java, Go, Python and Dart code, and run JSONPath / JMESPath queries — in your browser.',
+      'Use our free JSON converter online to convert JSON, XML, CSV, YAML and TOML both ways, generate typed code, and query data privately in your browser.',
     keywords:
-      'json converter, json to csv, json to yaml, json to xml, json to toml, json to typescript, json to java, json to go, json to python, jsonpath, jmespath',
-    heading: 'JSON Converter & Code Generator',
+      'json converter, xml to json converter, csv to json converter, yaml to json converter, json converter online, pdf to json converter, text to json converter, excel to json converter, txt to json converter, string to json converter, json converter to excel, json converter to word, json to xml, json to csv, json to yaml, json to toml, toml to json, JSONPath, JMESPath',
+    heading: 'JSON Converter Online — XML, CSV, YAML, TOML & Code',
     intro:
-      'Convert JSON to CSV, YAML, XML and TOML, generate strongly-typed code for TypeScript, Java, Go, Python and Dart, and slice large datasets with JSONPath and JMESPath queries — all client-side.',
+      'Convert JSON to or from YAML, XML, CSV and TOML, generate typed models for five programming languages, and query documents with JSONPath or JMESPath. Processing stays in your browser.',
   },
   {
     tool: 'text',
     path: '/text-compare',
     label: 'Text Compare',
     navBrand: 'Text Compare & Diff',
-    title: 'Text Compare & Diff Tool — Find Differences | JSONLab',
+    title: 'Text Compare Online — Free Text Difference Tool | JSONLab',
     description:
-      'Free online text compare and diff tool. Paste two blocks of plain text and see every added, removed and changed line side by side — 100% in your browser, nothing uploaded.',
+      'Compare two texts online with a free text compare tool. See every added, removed and changed line side by side or unified, privately in your browser.',
     keywords:
-      'text compare, text diff, compare text, diff tool, text difference, compare two texts, online diff, find differences, side by side text compare',
-    heading: 'Text Compare & Diff',
+      'text-compare, text compare, text compare online, online text compare, text compare tool, online text compare tool, text compare online free, text compare tools, text compare online tool, text compare tool online, free text compare tool, compare two text files, text difference checker, line diff',
+    heading: 'Text Compare Online — Free Side-by-Side Difference Tool',
     intro:
-      'Compare two blocks of plain text and instantly see every added, removed and changed line highlighted side by side. Ideal for logs, config, prose or code snippets — everything runs locally in your browser, so your text never leaves your machine.',
+      'Compare two editable texts line by line, highlight additions, removals and changes, and switch between side-by-side and unified views. Open multiple comparison tabs while keeping every document in your browser.',
   },
 ] as const;
 

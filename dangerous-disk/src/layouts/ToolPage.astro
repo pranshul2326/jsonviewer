@@ -35,14 +35,16 @@ const route = routeForTool(tool);
       <AppShell client:load enableShare={false} initialTool={tool} />
     </main>
 
-    {/* Crawlable, server-rendered intro so each tool page has real, unique
-        on-page content for search engines. */}
-    <section class="tool-intro" aria-label={route.heading}>
-      <article class="tool-prose">
-        <h1>{route.heading}</h1>
-        <p>{route.intro}</p>
-      </article>
-    </section>
+    {/* Dedicated pages can provide substantial route-specific SEO content.
+        Pages without the named slot retain the concise default intro. */}
+    <slot name="seo">
+      <section class="tool-intro" aria-label={route.heading}>
+        <article class="tool-prose">
+          <h1>{route.heading}</h1>
+          <p>{route.intro}</p>
+        </article>
+      </section>
+    </slot>
 
     <SiteFooter />
   </div>

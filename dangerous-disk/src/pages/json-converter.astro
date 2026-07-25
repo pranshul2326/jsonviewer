@@ -1,5 +1,188 @@
 ---
+import ToolSeoContent from '../components/ToolSeoContent.astro';
 import ToolPage from '../layouts/ToolPage.astro';
+
+interface ToolFaq {
+  q: string;
+  a: string;
+}
+
+const faqs: ToolFaq[] = [
+  {
+    q: 'How to use a JSON converter in C#?',
+    a: '<p>In C#, use <code>System.Text.Json</code>: call <code>JsonSerializer.Deserialize&lt;T&gt;(json)</code> to turn JSON into a typed object and <code>JsonSerializer.Serialize(value)</code> to create JSON. JSONLab can prepare or inspect the JSON and convert it to XML, CSV, YAML or TOML, but its code generator currently targets TypeScript, Java, Go, Python and Dart rather than C#.</p>',
+  },
+  {
+    q: 'How to open a .JSON file online?',
+    a: '<p>Open JSONLab, select the Converter, and use <strong>Upload</strong> to choose a local <code>.json</code> file, or paste its contents into the source editor. To inspect and format the file instead of converting it, use the <a href="/json-viewer">JSON Viewer</a>. The file is read locally by your browser rather than uploaded to an application server.</p>',
+  },
+  {
+    q: 'How do I convert to JSON?',
+    a: '<p>Choose YAML, XML, CSV or TOML, switch the direction so the selected format points to JSON, then paste or upload the source file. The converter updates the JSON output automatically. Copy the result or select <strong>Load into editor</strong> to continue validating, formatting or using it in another JSONLab tool.</p>',
+  },
+  {
+    q: 'Can I convert JSON to text?',
+    a: '<p>JSON is already a plain-text data format. You can copy formatted JSON and save it as a <code>.txt</code> file, or convert it to another text-based format such as YAML, XML, CSV or TOML. JSONLab does not have a separate generic TXT target because unstructured text needs a defined schema before it can become structured JSON.</p>',
+  },
+  {
+    q: 'What is the best way to open a JSON?',
+    a: '<p>Use a dedicated JSON viewer when you need to read the structure, search values and validate syntax. JSONLab’s <a href="/json-viewer">JSON Viewer and Formatter</a> displays a collapsible tree and catches errors. Use this Converter when your goal is to change the document into another data format or generate typed source code.</p>',
+  },
+  {
+    q: 'How to convert JSON to human-readable?',
+    a: '<p>Open the JSON Viewer, paste or upload the document, and format it with indentation. A formatted tree is usually the clearest human-readable representation. You can also use this converter to create YAML, which is often easier to scan for configuration data, while preserving the original hierarchy.</p>',
+  },
+  {
+    q: 'Which formats does the JSON converter support?',
+    a: '<p>The Convert mode supports JSON to and from YAML, XML, CSV and TOML. Code mode generates TypeScript, Java, Go, Python and Dart models. Query mode supports JSONPath and JMESPath. PDF, DOCX, native Excel files and arbitrary TXT documents are not direct input or output formats.</p>',
+  },
+  {
+    q: 'How does the XML to JSON converter work?',
+    a: '<p>Select <strong>XML</strong>, switch the direction to <strong>XML → JSON</strong>, then paste XML or upload a local <code>.xml</code> file. Valid elements, attributes and text are transformed into JSON and conversion errors include location details when available. Review the output before using it because XML and JSON represent repeated elements and attributes differently.</p>',
+  },
+  {
+    q: 'Can I convert CSV or YAML to JSON online?',
+    a: '<p>Yes. Select CSV or YAML, switch the arrow toward JSON, and paste or upload the source. The CSV to JSON converter uses the header row as object keys, while the YAML to JSON converter preserves supported mappings, lists and scalar values. You can copy the generated JSON or load it into the shared editor.</p>',
+  },
+  {
+    q: 'Does JSONLab convert PDF files to JSON?',
+    a: '<p>No. A PDF stores page layout rather than a consistent data schema, so JSONLab is not a direct PDF to JSON converter. First extract the PDF’s tables or fields with an OCR or document-processing tool, export that structured result as CSV or JSON, and then use JSONLab to validate or convert it.</p>',
+  },
+  {
+    q: 'Can I convert JSON to Excel or Word?',
+    a: '<p>JSONLab does not create native <code>.xlsx</code> or <code>.docx</code> files. For Excel, convert a flat JSON array to CSV and open the CSV in Excel. There is no direct JSON converter to Word because a Word document requires layout and document-template decisions that are not present in JSON.</p>',
+  },
+  {
+    q: 'Is my data private when I use the online converter?',
+    a: '<p>Conversion, code generation and queries run in your browser, and source files are read with the browser FileReader API. JSONLab does not send the document to an application server. The shared JSON editor may retain smaller documents in session storage for continuity between tools; clear the editor or close the session when finished with sensitive data.</p>',
+  },
+];
+
+const pageUrl = new URL(
+  '/json-converter',
+  Astro.site?.origin ?? 'https://jsonviewformat.com',
+).href;
+
+const application = {
+  name: 'JSON Converter Online',
+  alternateName: 'JSONLab JSON Converter and Code Generator',
+  url: pageUrl,
+  description:
+    'A private browser-based JSON converter for YAML, XML, CSV and TOML, with typed code generation and JSONPath or JMESPath queries.',
+  applicationCategory: 'DeveloperApplication',
+  operatingSystem: 'Any (web-based)',
+  browserRequirements: 'Requires a modern web browser with JavaScript enabled.',
+  featureList: [
+    'Bidirectional JSON and YAML conversion',
+    'Bidirectional JSON and XML conversion',
+    'Bidirectional JSON and CSV conversion',
+    'Bidirectional JSON and TOML conversion',
+    'TypeScript, Java, Go, Python and Dart code generation',
+    'JSONPath and JMESPath queries',
+    'Local file reading and client-side processing',
+  ],
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'USD',
+  },
+  isAccessibleForFree: true,
+};
 ---
 
-<ToolPage tool="converter" />
+<ToolPage tool="converter">
+  <Fragment slot="seo">
+    <ToolSeoContent
+      heading="JSON Converter Online — XML, CSV, YAML, TOML & Code"
+      headingId="json-converter-heading"
+      faqHeading="Frequently asked questions about the JSON converter"
+      {faqs}
+      {pageUrl}
+      {application}
+    >
+      <p>
+        <strong>JSONLab JSON Converter</strong> is a free, browser-based
+        <strong>JSON converter online</strong> for developers, analysts and
+        anyone working with structured data. It converts JSON to or from YAML,
+        XML, CSV and TOML, generates typed source-code models, and queries large
+        documents without sending their contents to an application server. Paste
+        text directly or select a supported local file, choose the direction,
+        and copy the converted result when it is ready.
+      </p>
+
+      <h2>Convert JSON, XML, CSV, YAML and TOML both ways</h2>
+      <p>
+        The converter works in both directions. Use the
+        <strong>XML to JSON converter</strong> to turn elements and attributes
+        into a JSON structure, or send JSON back to XML for systems that require
+        markup. The <strong>CSV to JSON converter</strong> maps a header row to
+        object keys, making tabular exports easier to use in APIs. The
+        <strong>YAML to JSON converter</strong> handles configuration data, while
+        TOML support is useful for application and package settings. You can also
+        reverse each workflow to create YAML, XML, CSV or TOML from valid JSON.
+      </p>
+
+      <h2>How to use this JSON converter online</h2>
+      <ol>
+        <li>Select YAML, XML, CSV or TOML from the format controls.</li>
+        <li>Use the direction button to choose JSON as the source or destination.</li>
+        <li>Paste content into the source pane or upload a matching local file.</li>
+        <li>Review the automatic result, then copy it or load JSON into the editor.</li>
+      </ol>
+      <p>
+        A conversion error leaves the source unchanged and, when possible, points
+        to the affected line or data path. That makes it easier to correct a
+        malformed document without losing the original input. For formatting and
+        syntax repair before conversion, open the <a href="/json-viewer">JSON
+        Viewer and Validator</a>.
+      </p>
+
+      <h2>Generate typed code and query JSON data</h2>
+      <p>
+        Converter mode is only one part of the page. Code mode examines a sample
+        JSON document and generates TypeScript interfaces, Java classes, Go
+        structs, Python dataclasses or Dart classes. Query mode evaluates JSONPath
+        or JMESPath expressions and returns the matching data as formatted JSON.
+        These options help when moving from an API example to an application
+        model, or when you need to extract a small result from a much larger
+        payload before converting it.
+      </p>
+
+      <h2>Text, TXT and string to JSON conversion</h2>
+      <p>
+        JSON itself is text, but unstructured prose cannot be converted reliably
+        until you decide which words should become keys and values. A
+        <strong>string to JSON converter</strong> can parse a string only when it
+        already contains valid JSON syntax. Likewise, a generic
+        <strong>text to JSON converter</strong> or <strong>TXT to JSON converter</strong>
+        needs rules for the source format. If a text file contains CSV, YAML, XML,
+        TOML or JSON, choose that real format here. Otherwise, organize the text
+        into a schema first and then validate the resulting JSON.
+      </p>
+
+      <h2>PDF, Excel and Word conversion options</h2>
+      <p>
+        JSONLab does not claim to be a direct <strong>PDF to JSON converter</strong>,
+        because PDF pages require table extraction, OCR and field-mapping rules.
+        Extract the structured content first, then bring CSV or JSON into this
+        tool. For an <strong>Excel to JSON converter</strong> workflow, save the
+        worksheet as CSV and convert that CSV to JSON. In the other direction, a
+        practical <strong>JSON converter to Excel</strong> workflow is JSON to CSV
+        followed by opening the CSV in Excel; native XLSX files are not generated.
+        A <strong>JSON converter to Word</strong> is also not included, since Word
+        output requires a document template and layout rather than only a data
+        transformation.
+      </p>
+
+      <h2>Private conversion in your browser</h2>
+      <p>
+        Supported conversions and queries run locally, and uploaded files are read
+        by browser APIs. This keeps API responses, configuration values and test
+        data away from an application server. Smaller shared JSON documents may
+        remain in session storage so you can move between JSONLab tools; clear the
+        editor or close the browser session when you are finished. No account is
+        required, and the converter is free to use.
+      </p>
+    </ToolSeoContent>
+  </Fragment>
+</ToolPage>
