@@ -25,6 +25,13 @@ import {
   $document,
   $diffBuffers,
   restoreDiffBuffersFromStorage,
+  seedDiffLeftIfNeeded,
+  setDiffMode,
+  addDiffComparison,
+  closeDiffComparison,
+  setActiveDiffComparison,
+  updateActiveDiffComparison,
+  clearActiveDiffComparison,
 } from '../../lib/stores/document';
 import DiffPanel from './DiffPanel';
 import { SemanticDiffList } from './SemanticDiffList';
@@ -66,10 +73,7 @@ export default function DiffTool() {
     // Otherwise seed Left from the shared document the first time the Diff tool
     // is opened in this session, so the content the user was viewing flows into
     // the comparison (Req 21.5/21.6). The shared `$document` is never mutated.
-    const buffers = $diffBuffers.get();
-    if (!buffers.seeded) {
-      $diffBuffers.set({ ...buffers, left: $document.get().text, seeded: true });
-    }
+    seedDiffLeftIfNeeded($document.get().text);
     // Only now mount the Monaco editor (below), so it is created exactly once
     // with the final restored/seeded text. Mounting it earlier let Monaco build
     // its models from the empty pre-restore buffers, and on a fast (cached)
@@ -89,35 +93,25 @@ export default function DiffTool() {
     return () => document.documentElement.classList.remove(CLASS);
   }, []);
 
-  const {
-    left: leftText,
-    right: rightText,
-    leftName,
-    rightName,
-    mode,
-  } = useStore($diffBuffers);
+  const { comparisons, activeId, mode } = useStore($diffBuffers);
+  const active = comparisons.find((c) => c.id === activeId) ?? comparisons[0];
+  const leftText = active.left;
+  const rightText = active.right;
+  const leftName = active.leftName;
+  const rightName = active.rightName;
 
   // Total structural differences, surfaced by the semantic diff list so it can
   // be shown in the always-visible toolbar (not just in the list below).
   const [diffCount, setDiffCount] = useState<number | null>(null);
 
-  const setMode = (next: DiffMode) => $diffBuffers.setKey('mode', next);
-  const setLeftText = (text: string) => $diffBuffers.setKey('left', text);
-  const setRightText = (text: string) => $diffBuffers.setKey('right', text);
-  const setLeftName = (name: string) => $diffBuffers.setKey('leftName', name);
-  const setRightName = (name: string) => $diffBuffers.setKey('rightName', name);
-  // Clear both documents and their labels in one place, so the shared buffers
-  // and their localStorage mirror are wiped together. The current mode is kept,
-  // and `seeded` stays true so the Left side is not re-seeded from $document.
-  const clearAll = () =>
-    $diffBuffers.set({
-      left: '',
-      right: '',
-      leftName: '',
-      rightName: '',
-      mode: $diffBuffers.get().mode,
-      seeded: true,
-    });
+  const setMode = (next: DiffMode) => setDiffMode(next);
+  const setLeftText = (text: string) => updateActiveDiffComparison({ left: text });
+  const setRightText = (text: string) => updateActiveDiffComparison({ right: text });
+  const setLeftName = (name: string) => updateActiveDiffComparison({ leftName: name });
+  const setRightName = (name: string) => updateActiveDiffComparison({ rightName: name });
+  // Clear the active comparison's documents and labels (its tab stays open). The
+  // shared buffers and their localStorage mirror are wiped together.
+  const clearAll = () => clearActiveDiffComparison();
 
   return (
     <section
@@ -170,6 +164,11 @@ export default function DiffTool() {
                 onRightNameChange={setRightName}
                 onClear={clearAll}
                 differenceCount={diffCount}
+                comparisons={comparisons.map((c) => ({ id: c.id, name: c.name }))}
+                activeId={activeId}
+                onSelectComparison={setActiveDiffComparison}
+                onAddComparison={addDiffComparison}
+                onCloseComparison={closeDiffComparison}
               />
             )}
           </div>

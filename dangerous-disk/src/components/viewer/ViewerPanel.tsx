@@ -337,10 +337,9 @@ export default function ViewerPanel({ progress, progressLabel, compact = false }
       });
   }, [doc.text, applyFixResult, flashFixFeedback]);
 
-  // The document is empty/whitespace-only when it parses as valid-empty; Smart
-  // Fix has nothing to act on then. It is also disabled while a worker fix is in
-  // flight so a second click can't race the first.
-  const isEmptyDoc = parsed.ok && parsed.empty;
+  // Smart Fix is disabled while a worker fix is in flight so a second click can't
+  // race the first. The Fix button now only renders for an invalid document, so
+  // an empty/whitespace-only document (which is valid) never reaches it.
   const isFixing = fixFeedback?.kind === 'working';
 
   // ── Resizable editor/tree split ──────────────────────────────────────────
@@ -357,6 +356,9 @@ export default function ViewerPanel({ progress, progressLabel, compact = false }
   // The single row currently being edited (id), so opening one editor closes
   // any other (only one active editor at a time across the tree).
   const [activeEditId, setActiveEditId] = useState<string | null>(null);
+  // Whether every expandable tree node is currently expanded, reported by
+  // TreePanel so the toolbar can show a single Expand/Collapse toggle.
+  const [allExpanded, setAllExpanded] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
@@ -461,16 +463,18 @@ export default function ViewerPanel({ progress, progressLabel, compact = false }
             >
               Minify
             </button>
-            <button
-              type="button"
-              data-testid="fix-button"
-              class="rounded-xs px-xs py-xxs text-button-md text-body ring-1 ring-inset ring-hairline hover:bg-canvas-soft disabled:cursor-not-allowed disabled:opacity-50"
-              onClick={onFix}
-              disabled={isEmptyDoc || isFixing}
-              title="Smart Fix: repair trailing commas, unquoted keys and single-quoted strings"
-            >
-              {isFixing ? 'Fixing…' : 'Fix'}
-            </button>
+            {!parsed.ok && (
+              <button
+                type="button"
+                data-testid="fix-button"
+                class="rounded-xs px-xs py-xxs text-button-md text-body ring-1 ring-inset ring-hairline hover:bg-canvas-soft disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={onFix}
+                disabled={isFixing}
+                title="Smart Fix: repair trailing commas, unquoted keys and single-quoted strings"
+              >
+                {isFixing ? 'Fixing…' : 'Fix'}
+              </button>
+            )}
 
             {/* Transient Smart Fix feedback (Req 7.6/7.7), auto-dismissed. */}
             {fixFeedback?.kind === 'working' ? (
@@ -552,19 +556,12 @@ export default function ViewerPanel({ progress, progressLabel, compact = false }
           <div class="flex items-center gap-xs border-b border-hairline px-sm py-xs">
             <button
               type="button"
+              data-testid="expand-toggle"
               class="rounded-xs px-xs py-xxs text-button-md text-body ring-1 ring-inset ring-hairline hover:bg-canvas-soft disabled:cursor-not-allowed disabled:opacity-50"
-              onClick={expandAll}
+              onClick={allExpanded ? collapseAll : expandAll}
               disabled={!hasTree}
             >
-              Expand all
-            </button>
-            <button
-              type="button"
-              class="rounded-xs px-xs py-xxs text-button-md text-body ring-1 ring-inset ring-hairline hover:bg-canvas-soft disabled:cursor-not-allowed disabled:opacity-50"
-              onClick={collapseAll}
-              disabled={!hasTree}
-            >
-              Collapse all
+              {allExpanded ? 'Collapse all' : 'Expand all'}
             </button>
             {/* Edit-rejection message (Req 2.5/2.6/2.7), shown inline after the
                 tree controls — plain text, no box. */}
@@ -586,6 +583,7 @@ export default function ViewerPanel({ progress, progressLabel, compact = false }
                 root={model}
                 showControls={false}
                 onApi={onTreeApi}
+                onExpansionStatusChange={setAllExpanded}
                 renderRow={renderRow}
               />
             ) : parsed.ok ? (

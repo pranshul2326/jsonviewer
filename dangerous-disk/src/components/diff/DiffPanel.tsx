@@ -113,6 +113,21 @@ export interface DiffPanelProps {
    * found"). `null` while a document is invalid or the comparison is pending.
    */
   differenceCount?: number | null;
+  /**
+   * Multi-comparison tab bar (Compare mode). When provided together with
+   * `onAddComparison`, the toolbar renders one tab per comparison plus a
+   * "+ new compare" button. Optional, so the panel stays backward-compatible
+   * when mounted without tabs.
+   */
+  comparisons?: { id: string; name: string }[];
+  /** Id of the active comparison (the highlighted tab). */
+  activeId?: string;
+  /** Select the comparison with the given id (switches the active tab). */
+  onSelectComparison?: (id: string) => void;
+  /** Open a new, empty comparison and make it active. */
+  onAddComparison?: () => void;
+  /** Close the comparison with the given id (never the last remaining one). */
+  onCloseComparison?: (id: string) => void;
 }
 
 /**
@@ -139,6 +154,30 @@ const NAME_FIELD_BASE =
   'min-w-0 rounded-sm bg-transparent px-2 py-0.5 font-sans text-body-sm text-ink ' +
   'placeholder:text-mute ring-1 ring-inset ring-transparent transition-colors ' +
   'hover:ring-hairline focus:outline-none focus:ring-2 focus:ring-link/50';
+
+/** Shared classes for the small icon-only copy buttons in the banner. */
+const COPY_BTN_BASE =
+  'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-mute ' +
+  'transition-colors cursor-pointer hover:bg-canvas-soft hover:text-ink ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-link/50';
+
+/** Clipboard "copy" glyph (two overlapping sheets). */
+function CopyGlyph() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+      <path d="M10.5 5.5V4A1.5 1.5 0 0 0 9 2.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5" />
+    </svg>
+  );
+}
+/** Checkmark glyph shown briefly after a successful copy. */
+function CheckGlyph() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="text-success" aria-hidden="true">
+      <path d="M3.5 8.5l3 3 6-7" />
+    </svg>
+  );
+}
 
 /**
  * An inner diff pane whose scroll-position setters we may have shadowed to
@@ -221,6 +260,11 @@ export function DiffPanel({
   onRightNameChange,
   onClear,
   differenceCount = null,
+  comparisons,
+  activeId,
+  onSelectComparison,
+  onAddComparison,
+  onCloseComparison,
 }: DiffPanelProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -279,6 +323,25 @@ export function DiffPanel({
   const editorRef = useRef<Monaco.editor.IStandaloneDiffEditor | null>(null);
   const originalModelRef = useRef<Monaco.editor.ITextModel | null>(null);
   const modifiedModelRef = useRef<Monaco.editor.ITextModel | null>(null);
+  // Transient "copied" indicator for the banner copy buttons (per side).
+  const [copiedSide, setCopiedSide] = useState<'left' | 'right' | null>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Copy the current content of one pane's Monaco model to the clipboard. */
+  const copySide = (side: 'left' | 'right') => {
+    const model = side === 'left' ? originalModelRef.current : modifiedModelRef.current;
+    const text = model?.getValue() ?? '';
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return;
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        setCopiedSide(side);
+        if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = setTimeout(() => setCopiedSide(null), 1500);
+      })
+      .catch(() => {
+        /* clipboard unavailable/blocked — leave the content untouched */
+      });
+  };
   // Latest view mode, read inside the async setup without re-subscribing.
   const viewModeRef = useRef<ViewMode>(viewMode);
   viewModeRef.current = viewMode;
@@ -758,10 +821,14 @@ export function DiffPanel({
   }, [isFullscreen]);
 
   // Keep the live Monaco models in sync with externally-driven text changes
-  // (e.g. the Left/Right buffers restored from storage after a page refresh, or
-  // seeded by the parent). Guarded by a value comparison so our own edits — the
-  // parent echoes them straight back as new props — never trigger a redundant
-  // `setValue` (which would reset the cursor/undo stack or loop).
+  // (e.g. the Left/Right buffers restored from storage after a page refresh,
+  // seeded by the parent, OR the active comparison changing when the user
+  // switches tabs). Switching comparisons changes initialLeft/initialRight to the
+  // newly-active comparison's text, and these effects reconcile the models to it
+  // — the same external-sync path used for restore/seed. Guarded by a value
+  // comparison so our own edits — the parent echoes them straight back as new
+  // props — never trigger a redundant `setValue` (which would reset the
+  // cursor/undo stack or loop).
   useEffect(() => {
     const model = originalModelRef.current;
     if (model && model.getValue() !== initialLeft) model.setValue(initialLeft);
@@ -770,6 +837,13 @@ export function DiffPanel({
     const model = modifiedModelRef.current;
     if (model && model.getValue() !== initialRight) model.setValue(initialRight);
   }, [initialRight, modelsReady]);
+  // Clear the pending "copied" reset timer on unmount.
+  useEffect(
+    () => () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    },
+    [],
+  );
 
   // Format (beautify / indent) both documents in place using the shared
   // indentation setting. Each side is parsed and re-serialized; an empty or
@@ -815,7 +889,66 @@ export function DiffPanel({
     >
       {/* ── Toolbar: view toggle (Req 9.1 / 9.2) ───────────────────────────── */}
       <div class="flex flex-wrap items-center justify-between gap-2 border-b border-hairline px-3 py-2 sm:gap-4 sm:px-4">
-        <span class="font-sans text-body-sm-strong text-ink">Diff Checker</span>
+        <div class="flex min-w-0 flex-1 items-center gap-3">
+          <span class="shrink-0 font-sans text-body-sm-strong text-ink">Diff Checker</span>
+          {comparisons && onAddComparison && (
+            <div class="flex min-w-0 items-center gap-1 overflow-x-auto" role="tablist" aria-label="Comparisons">
+              {comparisons.map((c) => {
+                const isActive = c.id === activeId;
+                return (
+                  <div
+                    key={c.id}
+                    class={`group inline-flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-1 font-sans text-body-sm transition-colors ${
+                      isActive
+                        ? 'border-hairline bg-canvas text-ink shadow-level-1'
+                        : 'border-transparent bg-canvas-soft-2 text-body hover:bg-canvas-soft hover:text-ink'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={isActive}
+                      data-comparison-tab={c.id}
+                      class="cursor-pointer whitespace-nowrap bg-transparent focus-visible:outline-none"
+                      onClick={() => onSelectComparison?.(c.id)}
+                    >
+                      {c.name}
+                    </button>
+                    {comparisons.length > 1 && onCloseComparison && (
+                      <button
+                        type="button"
+                        aria-label={`Close ${c.name}`}
+                        title={`Close ${c.name}`}
+                        data-comparison-close={c.id}
+                        class="inline-flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-sm text-mute transition-colors hover:bg-error-soft hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-link/50"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onCloseComparison(c.id);
+                        }}
+                      >
+                        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                          <path d="M4 4l8 8M12 4l-8 8" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              <button
+                type="button"
+                data-action="add-comparison"
+                title="Open a new comparison"
+                class="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-dashed border-[#D4D9E1] px-2.5 py-1 font-sans text-body-sm text-body transition-colors hover:bg-canvas-soft hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-link/50"
+                onClick={() => onAddComparison()}
+              >
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                  <path d="M8 3v10M3 8h10" />
+                </svg>
+                new compare
+              </button>
+            </div>
+          )}
+        </div>
         <div class="flex items-center gap-2">
           {/* Sync Scroll toggle — shown only once the documents differ. It
               applies to the side-by-side layout (two panes): when on, the panes
@@ -868,12 +1001,18 @@ export function DiffPanel({
           {onClear && (
             <button
               type="button"
-              class="inline-flex items-center whitespace-nowrap rounded-md px-3 py-1.5 font-sans text-button-md text-body ring-1 ring-inset ring-hairline transition-colors cursor-pointer hover:bg-canvas-soft hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-link/50"
+              class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 font-sans text-button-md text-body ring-1 ring-inset ring-hairline transition-colors cursor-pointer hover:bg-canvas-soft hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-link/50"
               data-action="clear-all"
               title="Clear both documents"
               onClick={onClear}
             >
               Clear
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2.5 4h11" />
+                <path d="M6 4V2.75a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 .75.75V4" />
+                <path d="M4.5 4l.5 8.6a1 1 0 0 0 1 .9h3.9a1 1 0 0 0 1-.9L12 4" />
+                <path d="M6.75 6.75v4.25M9.25 6.75v4.25" />
+              </svg>
             </button>
           )}
           <div
@@ -1003,17 +1142,27 @@ export function DiffPanel({
           data-region={differenceCount === 0 ? 'no-differences' : 'difference-summary'}
         >
           {onLeftNameChange ? (
-            <input
-              type="text"
-              value={leftName}
-              onInput={(event) =>
-                onLeftNameChange((event.currentTarget as HTMLInputElement).value)
-              }
-              placeholder=" Original file name"
-              aria-label="Left file name"
-              data-field="left-name"
-              class={`${NAME_FIELD_BASE} justify-self-start text-left`}
-            />
+            <div class="flex min-w-0 items-center gap-1 justify-self-start">
+              <input
+                type="text"
+                value={leftName}
+                onInput={(event) => onLeftNameChange((event.currentTarget as HTMLInputElement).value)}
+                placeholder=" Original file name"
+                aria-label="Left file name"
+                data-field="left-name"
+                class={`${NAME_FIELD_BASE} w-auto max-w-full [field-sizing:content] text-left`}
+              />
+              <button
+                type="button"
+                class={COPY_BTN_BASE}
+                data-action="copy-left"
+                title="Copy original"
+                aria-label="Copy original text"
+                onClick={() => copySide('left')}
+              >
+                {copiedSide === 'left' ? <CheckGlyph /> : <CopyGlyph />}
+              </button>
+            </div>
           ) : (
             <span />
           )}
@@ -1048,17 +1197,27 @@ export function DiffPanel({
           </div>
 
           {onRightNameChange ? (
-            <input
-              type="text"
-              value={rightName}
-              onInput={(event) =>
-                onRightNameChange((event.currentTarget as HTMLInputElement).value)
-              }
-              placeholder="Modified file name"
-              aria-label="Right file name"
-              data-field="right-name"
-              class={`${NAME_FIELD_BASE} justify-self-end text-right`}
-            />
+            <div class="flex min-w-0 items-center gap-1 justify-self-end">
+              <button
+                type="button"
+                class={COPY_BTN_BASE}
+                data-action="copy-right"
+                title="Copy modified"
+                aria-label="Copy modified text"
+                onClick={() => copySide('right')}
+              >
+                {copiedSide === 'right' ? <CheckGlyph /> : <CopyGlyph />}
+              </button>
+              <input
+                type="text"
+                value={rightName}
+                onInput={(event) => onRightNameChange((event.currentTarget as HTMLInputElement).value)}
+                placeholder="Modified file name"
+                aria-label="Right file name"
+                data-field="right-name"
+                class={`${NAME_FIELD_BASE} w-auto max-w-full [field-sizing:content] text-right`}
+              />
+            </div>
           ) : (
             <span />
           )}

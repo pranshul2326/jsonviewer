@@ -541,7 +541,7 @@ export default function AppShell({
   return (
     <section
       aria-label="JSONLab workbench"
-      class="flex min-h-0 flex-1 flex-col gap-sm"
+      class="flex min-h-0 flex-1 flex-col gap-md"
     >
       <NavigationBar
         trailing={

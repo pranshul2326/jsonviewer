@@ -160,52 +160,130 @@ export function setWorkerActivity(activity: WorkerActivity | null): void {
 }
 
 // ---------------------------------------------------------------------------
-// $diffBuffers — Diff Checker Left/Right buffers (persisted across tool switches)
+// $diffBuffers — Diff Checker comparisons (persisted across tool switches)
 // ---------------------------------------------------------------------------
-
 /**
- * The Diff Checker's own Left/Right document buffers and active mode. The Diff
- * tool unmounts when the user switches tools, so keeping these in a shared store
- * (rather than component state) preserves both pasted documents when the user
- * navigates away and back (Req 21.5/21.6). The shared `$document` is never
- * mutated by the Diff tool; `left` is merely seeded from it on first entry.
+ * A single Diff Checker comparison: one Left/Right document pair plus its
+ * optional banner labels. Several comparisons are held at once and surfaced as
+ * tabs in the Diff toolbar, so a user can keep multiple independent Left/Right
+ * pairs open and switch between them without losing any (Req 21.5/21.6).
  */
-export interface DiffBuffers {
+export interface DiffComparison {
+  /** Stable id — used as the tab key and active-tab reference. */
+  id: string;
+  /** Tab label shown in the tab bar (e.g. "Comparison 1"). */
+  name: string;
   /** Left (original) document text. */
   left: string;
   /** Right (modified) document text. */
   right: string;
-  /** Optional user-supplied label for the Left document (shown in the banner). */
+  /** Optional user label for the Left document (shown in the banner). */
   leftName: string;
-  /** Optional user-supplied label for the Right document (shown in the banner). */
+  /** Optional user label for the Right document (shown in the banner). */
   rightName: string;
+}
+/**
+ * The Diff Checker's comparisons and active mode. The Diff tool unmounts when
+ * the user switches tools, so keeping these in a shared store (rather than
+ * component state) preserves every open comparison when the user navigates away
+ * and back (Req 21.5/21.6). The shared `$document` is never mutated by the Diff
+ * tool; the first comparison's `left` is merely seeded from it on first entry.
+ */
+export interface DiffBuffers {
+  /** All open comparisons (tabs); always at least one. */
+  comparisons: DiffComparison[];
+  /** Id of the active comparison. */
+  activeId: string;
   /** Active mode: side-by-side compare, or three-way merge. */
   mode: 'compare' | 'merge';
-  /** Whether `left` has been seeded from the shared document yet (first entry). */
+  /** Whether the first comparison's Left has been seeded from the shared document yet. */
   seeded: boolean;
 }
-
-/** The Diff Checker buffers, retained for the lifetime of the session. */
+// A monotonic sequence plus randomness makes each new comparison id unique
+// within the page, so a freshly-added tab never collides with a restored one.
+// Kept at module scope (not exported): ids are minted only via the action
+// helpers below.
+let comparisonIdSeq = 0;
+function nextComparisonId(prefix: string): string {
+  comparisonIdSeq += 1;
+  return `${prefix}-cmp-${comparisonIdSeq}-${Math.random().toString(36).slice(2, 8)}`;
+}
+// Derive the next "Comparison N" label: one past the highest existing N (so
+// re-adding after closing middle tabs never reuses a visible number) and at
+// least one past the current count.
+function nextComparisonName(comparisons: readonly { name: string }[]): string {
+  let max = 0;
+  for (const c of comparisons) {
+    const m = /^Comparison (\d+)$/.exec(c.name);
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return `Comparison ${Math.max(max, comparisons.length) + 1}`;
+}
+// The first comparison uses a fixed id so the SSR and client module-load
+// default values match; a random id would differ between the two renders and
+// trip a hydration mismatch.
+const FIRST_DIFF_COMPARISON_ID = 'diff-cmp-1';
+/** The Diff Checker comparisons, retained for the lifetime of the session. */
 export const $diffBuffers = map<DiffBuffers>({
-  left: '',
-  right: '',
-  leftName: '',
-  rightName: '',
+  comparisons: [
+    { id: FIRST_DIFF_COMPARISON_ID, name: 'Comparison 1', left: '', right: '', leftName: '', rightName: '' },
+  ],
+  activeId: FIRST_DIFF_COMPARISON_ID,
   mode: 'compare',
   seeded: false,
 });
-
-// Persist the Diff buffers to localStorage so both documents survive a page
-// refresh. This is client-only and the data never leaves the browser, so the
-// privacy guarantee (no network egress) is preserved. All access is guarded for
-// SSR and wrapped so a blocked/full storage never breaks the app. Very large
-// buffers are not persisted, to stay clear of the storage quota.
+// Persist the Diff comparisons to localStorage so every open pair survives a
+// page refresh. This is client-only and the data never leaves the browser, so
+// the privacy guarantee (no network egress) is preserved. All access is guarded
+// for SSR and wrapped so a blocked/full storage never breaks the app. Very
+// large buffers are not persisted, to stay clear of the storage quota.
 const DIFF_BUFFERS_KEY = 'jvf:diff-buffers';
 const DIFF_PERSIST_MAX = 2_000_000; // ~2 MB combined; skip persisting beyond this
-
 /** Guards the diff-buffer restore so it runs at most once per page load. */
 let diffBuffersRestored = false;
-
+/**
+ * Coerce an unknown persisted value into a valid {@link DiffBuffers}, or return
+ * `null` when it cannot be salvaged. Both shapes are accepted so a refresh keeps
+ * working across the upgrade: the new multi-comparison shape (`{comparisons,
+ * activeId, mode}`) and the legacy single-comparison shape (`{left, right,
+ * leftName, rightName, mode}`) written by the previous version.
+ */
+function normalizeDiffBuffers(saved: unknown): DiffBuffers | null {
+  if (!saved || typeof saved !== 'object') return null;
+  const s = saved as Record<string, unknown>;
+  // New shape.
+  if (Array.isArray(s.comparisons) && s.comparisons.length > 0) {
+    const comparisons: DiffComparison[] = (s.comparisons as unknown[])
+      .filter((c): c is Record<string, unknown> =>
+        !!c && typeof c === 'object' &&
+        typeof (c as Record<string, unknown>).left === 'string' &&
+        typeof (c as Record<string, unknown>).right === 'string')
+      .map((c, i) => ({
+        id: typeof c.id === 'string' && c.id ? (c.id as string) : `diff-cmp-restored-${i + 1}`,
+        name: typeof c.name === 'string' && c.name ? (c.name as string) : `Comparison ${i + 1}`,
+        left: c.left as string,
+        right: c.right as string,
+        leftName: typeof c.leftName === 'string' ? (c.leftName as string) : '',
+        rightName: typeof c.rightName === 'string' ? (c.rightName as string) : '',
+      }));
+    if (comparisons.length === 0) return null;
+    const activeId = comparisons.some((c) => c.id === s.activeId) ? (s.activeId as string) : comparisons[0].id;
+    return { comparisons, activeId, mode: s.mode === 'merge' ? 'merge' : 'compare', seeded: true };
+  }
+  // Legacy single-comparison shape.
+  if (typeof s.left === 'string' && typeof s.right === 'string') {
+    const first: DiffComparison = {
+      id: FIRST_DIFF_COMPARISON_ID,
+      name: 'Comparison 1',
+      left: s.left as string,
+      right: s.right as string,
+      leftName: typeof s.leftName === 'string' ? (s.leftName as string) : '',
+      rightName: typeof s.rightName === 'string' ? (s.rightName as string) : '',
+    };
+    return { comparisons: [first], activeId: first.id, mode: s.mode === 'merge' ? 'merge' : 'compare', seeded: true };
+  }
+  return null;
+}
 /**
  * Restore the Diff buffers from localStorage (client-only).
  *
@@ -226,28 +304,17 @@ export function restoreDiffBuffersFromStorage(): void {
   try {
     const raw = localStorage.getItem(DIFF_BUFFERS_KEY);
     if (!raw) return;
-    const saved = JSON.parse(raw) as Partial<DiffBuffers>;
-    if (typeof saved.left === 'string' && typeof saved.right === 'string') {
-      $diffBuffers.set({
-        left: saved.left,
-        right: saved.right,
-        leftName: typeof saved.leftName === 'string' ? saved.leftName : '',
-        rightName: typeof saved.rightName === 'string' ? saved.rightName : '',
-        mode: saved.mode === 'merge' ? 'merge' : 'compare',
-        // Restored buffers count as already seeded, so the Diff tool keeps them
-        // instead of overwriting Left from the shared document.
-        seeded: true,
-      });
-    }
+    const restored = normalizeDiffBuffers(JSON.parse(raw));
+    if (restored) $diffBuffers.set(restored);
   } catch {
     /* ignore corrupt or blocked storage */
   }
 }
-
 $diffBuffers.listen((value) => {
   if (typeof localStorage === 'undefined') return;
   try {
-    if (value.left.length + value.right.length > DIFF_PERSIST_MAX) {
+    const total = value.comparisons.reduce((n, c) => n + c.left.length + c.right.length, 0);
+    if (total > DIFF_PERSIST_MAX) {
       localStorage.removeItem(DIFF_BUFFERS_KEY);
       return;
     }
@@ -256,49 +323,179 @@ $diffBuffers.listen((value) => {
     /* ignore quota errors or blocked storage */
   }
 });
+// ── Diff comparison actions — the ONLY way the UI mutates $diffBuffers ────────
+/** Set the active Diff mode (side-by-side compare vs three-way merge). */
+export function setDiffMode(mode: 'compare' | 'merge'): void {
+  $diffBuffers.setKey('mode', mode);
+}
+/** Open a new, empty comparison and make it the active tab. */
+export function addDiffComparison(): void {
+  const state = $diffBuffers.get();
+  const comparison: DiffComparison = {
+    id: nextComparisonId('diff'),
+    name: nextComparisonName(state.comparisons),
+    left: '', right: '', leftName: '', rightName: '',
+  };
+  $diffBuffers.set({ ...state, comparisons: [...state.comparisons, comparison], activeId: comparison.id });
+}
+/**
+ * Close the comparison with `id`. The last remaining comparison is never removed
+ * (there is always at least one tab). When the active tab is closed, the
+ * neighbour that slides into its slot becomes active.
+ */
+export function closeDiffComparison(id: string): void {
+  const state = $diffBuffers.get();
+  if (state.comparisons.length <= 1) return; // never remove the last tab
+  const index = state.comparisons.findIndex((c) => c.id === id);
+  if (index === -1) return;
+  const comparisons = state.comparisons.filter((c) => c.id !== id);
+  let activeId = state.activeId;
+  if (activeId === id) activeId = comparisons[Math.min(index, comparisons.length - 1)].id;
+  $diffBuffers.set({ ...state, comparisons, activeId });
+}
+/** Make the comparison with `id` the active tab (a no-op if already active or unknown). */
+export function setActiveDiffComparison(id: string): void {
+  const state = $diffBuffers.get();
+  if (state.activeId === id) return;
+  if (!state.comparisons.some((c) => c.id === id)) return;
+  $diffBuffers.setKey('activeId', id);
+}
+/** Patch the active comparison's documents and/or labels in place. */
+export function updateActiveDiffComparison(
+  patch: Partial<Pick<DiffComparison, 'left' | 'right' | 'leftName' | 'rightName'>>,
+): void {
+  const state = $diffBuffers.get();
+  const comparisons = state.comparisons.map((c) => (c.id === state.activeId ? { ...c, ...patch } : c));
+  $diffBuffers.setKey('comparisons', comparisons);
+}
+/** Clear the active comparison's documents and labels (keeps the tab open). */
+export function clearActiveDiffComparison(): void {
+  updateActiveDiffComparison({ left: '', right: '', leftName: '', rightName: '' });
+}
+/**
+ * Seed the first comparison's Left from the shared document the first time the
+ * Diff tool is opened this session, so the content the user was viewing flows
+ * into the comparison (Req 21.5/21.6). A no-op once seeded (including when
+ * buffers were restored from storage, which sets `seeded`).
+ */
+export function seedDiffLeftIfNeeded(text: string): void {
+  const state = $diffBuffers.get();
+  if (state.seeded) return;
+  const comparisons = state.comparisons.map((c, i) => (i === 0 ? { ...c, left: text } : c));
+  $diffBuffers.set({ ...state, comparisons, seeded: true });
+}
 
 // ---------------------------------------------------------------------------
 // $textCompareBuffers — Text Compare Left/Right buffers (persisted)
 // ---------------------------------------------------------------------------
 
 /**
- * The Text Compare tool's own Left/Right buffers. Mirrors {@link DiffBuffers}
- * but for arbitrary plain text rather than JSON: there is no mode (compare is
- * the only mode) and the contents are never parsed or validated. Like the Diff
- * buffers, keeping these in a shared store preserves both pasted documents when
- * the user switches tools and comes back (Req 21.5/21.6). The shared `$document`
- * is never mutated; `left` is merely seeded from it on first entry.
+ * A single Text Compare comparison: one Left/Right text pair plus its optional
+ * banner labels. Several comparisons are held at once and surfaced as tabs in
+ * the Text Compare toolbar, so a user can keep multiple independent Left/Right
+ * pairs open and switch between them without losing any (Req 21.5/21.6). Mirrors
+ * {@link DiffComparison} but for arbitrary plain text: there is no mode (compare
+ * is the only mode) and the contents are never parsed or validated.
  */
-export interface TextCompareBuffers {
+export interface TextComparison {
+  /** Stable id — used as the tab key and active-tab reference. */
+  id: string;
+  /** Tab label shown in the tab bar (e.g. "Comparison 1"). */
+  name: string;
   /** Left (original) text. */
   left: string;
   /** Right (modified) text. */
   right: string;
-  /** Optional user-supplied label for the Left text (shown in the banner). */
+  /** Optional user label for the Left text (shown in the banner). */
   leftName: string;
-  /** Optional user-supplied label for the Right text (shown in the banner). */
+  /** Optional user label for the Right text (shown in the banner). */
   rightName: string;
-  /** Whether `left` has been seeded from the shared document yet (first entry). */
+}
+
+/**
+ * The Text Compare tool's comparisons. The tool unmounts when the user switches
+ * tools, so keeping these in a shared store (rather than component state)
+ * preserves every open comparison when the user navigates away and back (Req
+ * 21.5/21.6). The shared `$document` is never mutated by the Text Compare tool;
+ * the first comparison's `left` is merely seeded from it on first entry.
+ */
+export interface TextCompareBuffers {
+  /** All open comparisons (tabs); always at least one. */
+  comparisons: TextComparison[];
+  /** Id of the active comparison. */
+  activeId: string;
+  /** Whether the first comparison's Left has been seeded from the shared document yet. */
   seeded: boolean;
 }
 
-/** The Text Compare buffers, retained for the lifetime of the session. */
+// The first comparison uses a fixed id so the SSR and client module-load default
+// values match; a random id would differ between the two renders and trip a
+// hydration mismatch.
+const FIRST_TEXT_COMPARISON_ID = 'text-cmp-1';
+
+/** The Text Compare comparisons, retained for the lifetime of the session. */
 export const $textCompareBuffers = map<TextCompareBuffers>({
-  left: '',
-  right: '',
-  leftName: '',
-  rightName: '',
+  comparisons: [
+    { id: FIRST_TEXT_COMPARISON_ID, name: 'Comparison 1', left: '', right: '', leftName: '', rightName: '' },
+  ],
+  activeId: FIRST_TEXT_COMPARISON_ID,
   seeded: false,
 });
 
-// Persist the Text Compare buffers to localStorage so both documents survive a
-// page refresh. Client-only and never leaves the browser (privacy preserved),
-// guarded for SSR, and wrapped so blocked/full storage never breaks the app.
+// Persist the Text Compare comparisons to localStorage so every open pair
+// survives a page refresh. Client-only and never leaves the browser (privacy
+// preserved), guarded for SSR, and wrapped so blocked/full storage never breaks
+// the app. Very large buffers are not persisted, to stay clear of the quota.
 const TEXT_COMPARE_BUFFERS_KEY = 'jvf:text-compare-buffers';
 const TEXT_COMPARE_PERSIST_MAX = 2_000_000; // ~2 MB combined; skip beyond this
 
 /** Guards the text-compare restore so it runs at most once per page load. */
 let textCompareBuffersRestored = false;
+
+/**
+ * Coerce an unknown persisted value into a valid {@link TextCompareBuffers}, or
+ * return `null` when it cannot be salvaged. Both shapes are accepted so a refresh
+ * keeps working across the upgrade: the new multi-comparison shape
+ * (`{comparisons, activeId}`) and the legacy single-comparison shape
+ * (`{left, right, leftName, rightName}`) written by the previous version. There
+ * is no `mode` field for Text Compare.
+ */
+function normalizeTextCompareBuffers(saved: unknown): TextCompareBuffers | null {
+  if (!saved || typeof saved !== 'object') return null;
+  const s = saved as Record<string, unknown>;
+  // New shape.
+  if (Array.isArray(s.comparisons) && s.comparisons.length > 0) {
+    const comparisons: TextComparison[] = (s.comparisons as unknown[])
+      .filter((c): c is Record<string, unknown> =>
+        !!c && typeof c === 'object' &&
+        typeof (c as Record<string, unknown>).left === 'string' &&
+        typeof (c as Record<string, unknown>).right === 'string')
+      .map((c, i) => ({
+        id: typeof c.id === 'string' && c.id ? (c.id as string) : `text-cmp-restored-${i + 1}`,
+        name: typeof c.name === 'string' && c.name ? (c.name as string) : `Comparison ${i + 1}`,
+        left: c.left as string,
+        right: c.right as string,
+        leftName: typeof c.leftName === 'string' ? (c.leftName as string) : '',
+        rightName: typeof c.rightName === 'string' ? (c.rightName as string) : '',
+      }));
+    if (comparisons.length === 0) return null;
+    const activeId = comparisons.some((c) => c.id === s.activeId) ? (s.activeId as string) : comparisons[0].id;
+    return { comparisons, activeId, seeded: true };
+  }
+  // Legacy single-comparison shape.
+  if (typeof s.left === 'string' && typeof s.right === 'string') {
+    const first: TextComparison = {
+      id: FIRST_TEXT_COMPARISON_ID,
+      name: 'Comparison 1',
+      left: s.left as string,
+      right: s.right as string,
+      leftName: typeof s.leftName === 'string' ? (s.leftName as string) : '',
+      rightName: typeof s.rightName === 'string' ? (s.rightName as string) : '',
+    };
+    return { comparisons: [first], activeId: first.id, seeded: true };
+  }
+  return null;
+}
 
 /**
  * Restore the Text Compare buffers from localStorage (client-only). Called from
@@ -312,18 +509,8 @@ export function restoreTextCompareBuffersFromStorage(): void {
   try {
     const raw = localStorage.getItem(TEXT_COMPARE_BUFFERS_KEY);
     if (!raw) return;
-    const saved = JSON.parse(raw) as Partial<TextCompareBuffers>;
-    if (typeof saved.left === 'string' && typeof saved.right === 'string') {
-      $textCompareBuffers.set({
-        left: saved.left,
-        right: saved.right,
-        leftName: typeof saved.leftName === 'string' ? saved.leftName : '',
-        rightName: typeof saved.rightName === 'string' ? saved.rightName : '',
-        // Restored buffers count as already seeded, so the tool keeps them
-        // instead of overwriting Left from the shared document.
-        seeded: true,
-      });
-    }
+    const restored = normalizeTextCompareBuffers(JSON.parse(raw));
+    if (restored) $textCompareBuffers.set(restored);
   } catch {
     /* ignore corrupt or blocked storage */
   }
@@ -332,7 +519,8 @@ export function restoreTextCompareBuffersFromStorage(): void {
 $textCompareBuffers.listen((value) => {
   if (typeof localStorage === 'undefined') return;
   try {
-    if (value.left.length + value.right.length > TEXT_COMPARE_PERSIST_MAX) {
+    const total = value.comparisons.reduce((n, c) => n + c.left.length + c.right.length, 0);
+    if (total > TEXT_COMPARE_PERSIST_MAX) {
       localStorage.removeItem(TEXT_COMPARE_BUFFERS_KEY);
       return;
     }
@@ -341,6 +529,64 @@ $textCompareBuffers.listen((value) => {
     /* ignore quota errors or blocked storage */
   }
 });
+
+// ── Text Compare comparison actions — the ONLY way the UI mutates the store ───
+/** Open a new, empty comparison and make it the active tab. */
+export function addTextComparison(): void {
+  const state = $textCompareBuffers.get();
+  const comparison: TextComparison = {
+    id: nextComparisonId('text'),
+    name: nextComparisonName(state.comparisons),
+    left: '', right: '', leftName: '', rightName: '',
+  };
+  $textCompareBuffers.set({ ...state, comparisons: [...state.comparisons, comparison], activeId: comparison.id });
+}
+/**
+ * Close the comparison with `id`. The last remaining comparison is never removed
+ * (there is always at least one tab). When the active tab is closed, the
+ * neighbour that slides into its slot becomes active.
+ */
+export function closeTextComparison(id: string): void {
+  const state = $textCompareBuffers.get();
+  if (state.comparisons.length <= 1) return; // never remove the last tab
+  const index = state.comparisons.findIndex((c) => c.id === id);
+  if (index === -1) return;
+  const comparisons = state.comparisons.filter((c) => c.id !== id);
+  let activeId = state.activeId;
+  if (activeId === id) activeId = comparisons[Math.min(index, comparisons.length - 1)].id;
+  $textCompareBuffers.set({ ...state, comparisons, activeId });
+}
+/** Make the comparison with `id` the active tab (a no-op if already active or unknown). */
+export function setActiveTextComparison(id: string): void {
+  const state = $textCompareBuffers.get();
+  if (state.activeId === id) return;
+  if (!state.comparisons.some((c) => c.id === id)) return;
+  $textCompareBuffers.setKey('activeId', id);
+}
+/** Patch the active comparison's texts and/or labels in place. */
+export function updateActiveTextComparison(
+  patch: Partial<Pick<TextComparison, 'left' | 'right' | 'leftName' | 'rightName'>>,
+): void {
+  const state = $textCompareBuffers.get();
+  const comparisons = state.comparisons.map((c) => (c.id === state.activeId ? { ...c, ...patch } : c));
+  $textCompareBuffers.setKey('comparisons', comparisons);
+}
+/** Clear the active comparison's texts and labels (keeps the tab open). */
+export function clearActiveTextComparison(): void {
+  updateActiveTextComparison({ left: '', right: '', leftName: '', rightName: '' });
+}
+/**
+ * Seed the first comparison's Left from the shared document the first time the
+ * Text Compare tool is opened this session, so the content the user was viewing
+ * flows into the comparison (Req 21.5/21.6). A no-op once seeded (including when
+ * buffers were restored from storage, which sets `seeded`).
+ */
+export function seedTextLeftIfNeeded(text: string): void {
+  const state = $textCompareBuffers.get();
+  if (state.seeded) return;
+  const comparisons = state.comparisons.map((c, i) => (i === 0 ? { ...c, left: text } : c));
+  $textCompareBuffers.set({ ...state, comparisons, seeded: true });
+}
 
 // ---------------------------------------------------------------------------
 // $activeTool — which tool is active

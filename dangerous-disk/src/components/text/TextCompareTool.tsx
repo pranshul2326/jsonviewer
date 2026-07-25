@@ -9,8 +9,9 @@
 // Like DiffTool, it keeps its own Left/Right buffers in a shared store so both
 // pasted documents survive tool switches (Req 21.5/21.6), seeds Left from the
 // shared `$document` on first entry so the content the user was viewing flows
-// into the comparison, and never mutates `$document`. All chrome derives from
-// design tokens (Req 22.1).
+// into the comparison, and never mutates `$document`. Multiple comparisons are
+// held at once and surfaced as tabs in the panel toolbar. All chrome derives
+// from design tokens (Req 22.1).
 
 import { useEffect, useState } from 'preact/hooks';
 import { useStore } from '@nanostores/preact';
@@ -18,6 +19,12 @@ import {
   $document,
   $textCompareBuffers,
   restoreTextCompareBuffersFromStorage,
+  seedTextLeftIfNeeded,
+  addTextComparison,
+  closeTextComparison,
+  setActiveTextComparison,
+  updateActiveTextComparison,
+  clearActiveTextComparison,
 } from '../../lib/stores/document';
 import TextComparePanel from './TextComparePanel';
 
@@ -42,14 +49,7 @@ export default function TextCompareTool() {
     // Otherwise seed Left from the shared document the first time the tool is
     // opened this session, so the content the user was viewing flows into the
     // comparison. The shared `$document` is never mutated.
-    const buffers = $textCompareBuffers.get();
-    if (!buffers.seeded) {
-      $textCompareBuffers.set({
-        ...buffers,
-        left: $document.get().text,
-        seeded: true,
-      });
-    }
+    seedTextLeftIfNeeded($document.get().text);
     // Mount the editor only now, so it is created once with the final text.
     setBuffersRestored(true);
   }, []);
@@ -65,27 +65,20 @@ export default function TextCompareTool() {
     return () => document.documentElement.classList.remove(CLASS);
   }, []);
 
-  const {
-    left: leftText,
-    right: rightText,
-    leftName,
-    rightName,
-  } = useStore($textCompareBuffers);
+  const { comparisons, activeId } = useStore($textCompareBuffers);
+  const active = comparisons.find((c) => c.id === activeId) ?? comparisons[0];
+  const leftText = active.left;
+  const rightText = active.right;
+  const leftName = active.leftName;
+  const rightName = active.rightName;
 
-  const setLeftText = (text: string) => $textCompareBuffers.setKey('left', text);
-  const setRightText = (text: string) => $textCompareBuffers.setKey('right', text);
-  const setLeftName = (name: string) => $textCompareBuffers.setKey('leftName', name);
-  const setRightName = (name: string) => $textCompareBuffers.setKey('rightName', name);
-  // Clear both texts and their labels together (shared buffers + localStorage
-  // mirror). `seeded` stays true so Left is not re-seeded from $document.
-  const clearAll = () =>
-    $textCompareBuffers.set({
-      left: '',
-      right: '',
-      leftName: '',
-      rightName: '',
-      seeded: true,
-    });
+  const setLeftText = (text: string) => updateActiveTextComparison({ left: text });
+  const setRightText = (text: string) => updateActiveTextComparison({ right: text });
+  const setLeftName = (name: string) => updateActiveTextComparison({ leftName: name });
+  const setRightName = (name: string) => updateActiveTextComparison({ rightName: name });
+  // Clear the active comparison's texts and labels (its tab stays open). The
+  // shared buffers and their localStorage mirror are wiped together.
+  const clearAll = () => clearActiveTextComparison();
 
   return (
     <section
@@ -108,6 +101,11 @@ export default function TextCompareTool() {
             onLeftNameChange={setLeftName}
             onRightNameChange={setRightName}
             onClear={clearAll}
+            comparisons={comparisons.map((c) => ({ id: c.id, name: c.name }))}
+            activeId={activeId}
+            onSelectComparison={setActiveTextComparison}
+            onAddComparison={addTextComparison}
+            onCloseComparison={closeTextComparison}
           />
         )}
       </div>

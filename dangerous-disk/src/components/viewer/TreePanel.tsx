@@ -22,7 +22,7 @@
 // nodes, the key, and a short value preview); a `renderRow` slot lets task 13.5
 // drop in the full `TreeRow` without changing this component.
 
-import { useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { VNode } from 'preact';
 import {
   Virtualizer,
@@ -161,6 +161,8 @@ export interface TreePanelProps {
   showControls?: boolean;
   /** Receives the imperative {@link TreePanelApi} once mounted (e.g. for ViewerPanel). */
   onApi?: (api: TreePanelApi) => void;
+  /** Reports whether every expandable node is currently expanded, so a parent can show a single Expand/Collapse toggle. Fires on mount and whenever it changes. */
+  onExpansionStatusChange?: (allExpanded: boolean) => void;
   /**
    * Optional row renderer. Task 13.5 slots the full `TreeRow` here; when omitted
    * a minimal inline row is rendered (caret, key, short value preview).
@@ -255,7 +257,7 @@ function useVirtualizer(
  * changes, so a freshly parsed model always starts with only the root expanded
  * (Req 1.8).
  */
-export function TreePanel({ root, showControls = true, onApi, renderRow }: TreePanelProps) {
+export function TreePanel({ root, showControls = true, onApi, onExpansionStatusChange, renderRow }: TreePanelProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => initialExpandedIds(root));
 
   // Re-seed expansion to the initial state (only root expanded, Req 1.8)
@@ -285,6 +287,14 @@ export function TreePanel({ root, showControls = true, onApi, renderRow }: TreeP
   }, [onApi, root]);
 
   const rows = useMemo(() => flattenTree(root, expandedIds), [root, expandedIds]);
+
+  // Report whether the tree is fully expanded so a parent (ViewerPanel) can show
+  // a single Expand/Collapse toggle. Fires on mount and whenever it changes.
+  const expandableCount = useMemo(() => collectExpandableIds(root).size, [root]);
+  const allExpanded = expandableCount > 0 && expandedIds.size >= expandableCount;
+  useEffect(() => {
+    onExpansionStatusChange?.(allExpanded);
+  }, [allExpanded, onExpansionStatusChange]);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const virtualizer = useVirtualizer(rows.length, () => scrollRef.current);
