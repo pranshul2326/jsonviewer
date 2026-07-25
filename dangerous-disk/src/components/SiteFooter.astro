@@ -7,12 +7,14 @@
 // file), these are real crawlable links that search engines follow, which is
 // good for SEO and required for a complete site (privacy policy / terms).
 //
-// Fully token-driven (Req 22.1) and contains no third-party markup or scripts
+// Fully token-driven (Req 22.1) with no third-party embeds or scripts
 // (Req 22.2 / Req 18), consistent with the rest of the app.
 
-const year = new Date().getFullYear();
-
+import LinkedInIcon from './LinkedInIcon.astro';
 import { TOOL_ROUTES } from '../lib/routing/tools';
+
+const year = new Date().getFullYear();
+const linkedInUrl = 'https://www.linkedin.com/in/pranshul-kharniwal/';
 
 const links: { href: string; label: string }[] = [
   { href: '/', label: 'Home' },
@@ -47,6 +49,16 @@ const links: { href: string; label: string }[] = [
         }
       </ul>
     </nav>
+    <a
+      class="site-footer-social"
+      href={linkedInUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Visit Pranshul Kharniwal on LinkedIn"
+      title="Pranshul Kharniwal on LinkedIn"
+    >
+      <LinkedInIcon />
+    </a>
     <p class="site-footer-meta">
       &copy; {year} JSONLab — Free, privacy-first online JSON tools. Your data
       never leaves your browser.
@@ -96,10 +108,41 @@ const links: { href: string; label: string }[] = [
     text-decoration: underline;
   }
 
-  .site-footer-nav a:focus-visible {
+  .site-footer-nav a:focus-visible,
+  .site-footer-social:focus-visible {
     outline: 2px solid var(--color-link, currentColor);
     outline-offset: 2px;
+  }
+
+  .site-footer-nav a:focus-visible {
     border-radius: 0.25rem;
+  }
+
+  .site-footer-social {
+    display: inline-flex;
+    width: 2.25rem;
+    height: 2.25rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-divider);
+    border-radius: 9999px;
+    color: var(--color-body, var(--color-ink));
+    background-color: var(--color-canvas);
+    text-decoration: none;
+    transition:
+      color 0.15s ease,
+      border-color 0.15s ease,
+      background-color 0.15s ease;
+  }
+
+  .site-footer-social:hover {
+    border-color: var(--color-link);
+    color: var(--color-link);
+    background-color: var(--color-canvas-soft);
+  }
+
+  .site-footer-social:focus-visible {
+    border-radius: 9999px;
   }
 
   .site-footer-meta {

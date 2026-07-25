@@ -1,13 +1,15 @@
 ---
+import LinkedInIcon from '../components/LinkedInIcon.astro';
 import ContentPage from '../layouts/ContentPage.astro';
 
 const title = 'Contact Us — JSONLab';
 const description =
-  'Get in touch with the JSONLab team. Send feedback, report a bug, or request a feature for our free online JSON tools.';
-const keywords = 'contact jsonlab, jsonlab support, json tools feedback';
+  'Contact the JSONLab team by email or LinkedIn to share feedback, report a bug, or request a feature for our free online JSON tools.';
+const keywords = 'contact jsonlab, jsonlab support, json tools feedback, jsonlab linkedin';
 
-// Contact address. Update this to your real support inbox.
+// Contact details. Update these if the support channels change.
 const email = 'pranshul2326@gmail.com';
+const linkedInUrl = 'https://www.linkedin.com/in/pranshul-kharniwal/';
 ---
 
 <ContentPage title={title} description={description} heading="Contact Us" keywords={keywords}>
@@ -24,6 +26,24 @@ const email = 'pranshul2326@gmail.com';
     reply within a few business days.
   </p>
 
+  <h2>LinkedIn</h2>
+  <p>
+    You can also connect with us on LinkedIn for project updates and professional
+    inquiries.
+  </p>
+  <p>
+    <a
+      class="linkedin-profile"
+      href={linkedInUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Visit Pranshul Kharniwal on LinkedIn"
+    >
+      <LinkedInIcon />
+      <span>Pranshul Kharniwal on LinkedIn</span>
+    </a>
+  </p>
+
   <h2>What to include</h2>
   <p>To help us respond quickly, please include:</p>
   <ul>
@@ -35,14 +55,46 @@ const email = 'pranshul2326@gmail.com';
   <p>
     <strong>Please do not paste sensitive or confidential JSON into your
     message.</strong> JSONLab processes your data locally in your browser, and
-    we never want to receive private data by email. A small, anonymized sample
-    is usually enough for us to help.
+    we never want to receive private data by email or LinkedIn. A small,
+    anonymized sample is usually enough for us to help.
   </p>
 
   <h2>Privacy</h2>
   <p>
-    Any information you send us by email is used solely to respond to your
-    inquiry. See our <a href="/privacy-policy">Privacy Policy</a> for more
-    details on how we handle data.
+    Any information you send us by email or LinkedIn is used solely to respond
+    to your inquiry. See our <a href="/privacy-policy">Privacy Policy</a> for
+    more details on how we handle data.
   </p>
 </ContentPage>
+
+<style>
+  .linkedin-profile {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+    border: 1px solid var(--color-divider);
+    border-radius: 0.5rem;
+    padding: 0.625rem 0.875rem;
+    color: var(--color-ink);
+    background-color: var(--color-canvas);
+    font-weight: 500;
+    line-height: 1.25;
+    text-decoration: none;
+    transition:
+      color 0.15s ease,
+      border-color 0.15s ease,
+      background-color 0.15s ease;
+  }
+
+  .linkedin-profile:hover {
+    border-color: var(--color-link);
+    color: var(--color-link);
+    background-color: var(--color-canvas-soft);
+    text-decoration: none;
+  }
+
+  .linkedin-profile:focus-visible {
+    outline: 2px solid var(--color-link, currentColor);
+    outline-offset: 2px;
+  }
+</style>
